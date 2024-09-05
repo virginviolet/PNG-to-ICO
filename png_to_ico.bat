@@ -1,4 +1,3 @@
-@ECHO off
 REM		Name :
 REM					PNG to ICO
 REM		Author :
@@ -13,6 +12,7 @@ REM					▄▄▄▄▄▄▄ █▄█▀ ▄ ██ ▄█
 REM					█ ▄▄▄ █  █▀█▀ ▄▀▀  ▄▀
 REM					█ ███ █ ▀▄  ▄▀▀▄▄▀█▀█
 REM					█▄▄▄▄▄█ ███▀▄▀ ▀██ ▄
+@ECHO off
 REM Console title
 TITLE PNG to ICO
 REM Script folder path
