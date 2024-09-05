@@ -16,13 +16,22 @@
 #>
 
 # Console title
-$host.ui.RawUI.WindowTitle = "PNG to ICO"
+# Check if RawUI is available before trying to set window properties
+if ($host.UI.RawUI -ne $null) {
+	$host.UI.RawUI.WindowTitle = "PNG to ICO"
+    
+	try {
+		# Attempt to change window size
+		$host.UI.RawUI.WindowSize = New-Object Management.Automation.Host.Size(65, 30)
+	} catch {
+		Write-Debug "Window size change is not supported in this environment."
+	}
+
+}
 
 # Script directory path
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-# Console height / width
-$host.UI.RawUI.WindowSize = New-Object Management.Automation.Host.Size(65, 30)
 
 Write-Output "`n"
 Write-Output  " -------------------------------------------------------------"
