@@ -24,11 +24,11 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 # Console height / width
 $host.UI.RawUI.WindowSize = New-Object Management.Automation.Host.Size(65, 30)
 
-ECHO "`n"
-ECHO  " -------------------------------------------------------------"
-ECHO  "                          PNG to ICO :"
-ECHO  " -------------------------------------------------------------"
-ECHO "`n"
+Write-Output "`n"
+Write-Output  " -------------------------------------------------------------"
+Write-Output  "                          PNG to ICO :"
+Write-Output  " -------------------------------------------------------------"
+Write-Output "`n"
 
 # First command line argument
 $argPath = $args[0]
@@ -50,27 +50,27 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 
 		# Print file name (with extension)
 		$fileName = $i.Name
-		ECHO "- $fileName"
+		Write-Output "- $fileName"
 
 		# Convert file to multi-resolution ICO
 		$dir = Resolve-Path $argPath
 		$fileBaseName = (Get-Item -Path $argPath).BaseName # Name without extension
 		$icon = Join-Path -Path $dir -ChildPath "$fileBaseName.ico"
-		& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=256,128,96,64,48,32,24,16 $icon
+		& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=256, 128, 96, 64, 48, 32, 24, 16 $icon
 	}
-# If first argument is a file
+	# If first argument is a file
 } ELSE {
 	
 	# ECHO File : $argPath
 
 	# Print file name (with extension)
 	$fileName = (Get-Item -Path $argPath).Name
-	ECHO "- $fileName"
+	Write-Output "- $fileName"
 
 	# Convert file to multi-resolution ICO
 	$dir = (Get-Item -Path $argPath).Directory
 	$fileBaseName = (Get-Item -Path $argPath).BaseName # Name without extension
 	$icon = Join-Path -Path $dir -ChildPath "$fileBaseName.ico"
-	echo $icon
-	& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=256,128,96,64,48,32,24,16 $icon
+	Write-Output $icon
+	& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=256, 128, 96, 64, 48, 32, 24, 16 $icon
 }
