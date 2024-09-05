@@ -51,7 +51,7 @@ function ConvertTo-Ico($icon) {
 # If first argument is a directory
 IF ([bool](Test-Path $argPath -PathType container)) {
 	
-	# ECHO "Directory : $argPath"
+	# Write-Output "Directory : $argPath"
 
 	# Get images in directory
 	$dirContents = Join-Path $argPath -ChildPath '*'
@@ -73,7 +73,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# If first argument is a file
 } ELSE {
 	
-	# ECHO File : $argPath
+	# Write-Output "File : $argPath"
 
 	# Print file name (with extension)
 	$fileName = (Get-Item -Path $argPath).Name
