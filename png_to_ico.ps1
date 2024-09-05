@@ -17,7 +17,7 @@
 
 # Console title
 # Check if RawUI is available before trying to set window properties
-if ($host.UI.RawUI -ne $null) {
+if ($null -ne $host.UI.RawUI) {
 	$host.UI.RawUI.WindowTitle = "PNG to ICO"
     
 	try {
