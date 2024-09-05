@@ -45,13 +45,14 @@ $argPath = $args[0]
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
 
 function ConvertTo-Ico($icon) {
-	& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=256, 128, 96, 64, 48, 32, 24, 16 $icon
+	$sizes = "256, 128, 96, 64, 48, 32, 24, 16"
+	& $magick $argPath -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=$sizes $icon
 }
 
 # If first argument is a directory
 IF ([bool](Test-Path $argPath -PathType container)) {
 	
-	# Write-Output "Directory : $argPath"
+	Write-Verbose "Directory : $argPath"
 
 	# Get images in directory
 	$dirContents = Join-Path $argPath -ChildPath '*'
@@ -73,7 +74,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# If first argument is a file
 } ELSE {
 	
-	# Write-Output "File : $argPath"
+	Write-Verbose "File : $argPath"
 
 	# Print file name (with extension)
 	$fileName = (Get-Item -Path $argPath).Name
