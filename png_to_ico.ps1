@@ -73,10 +73,8 @@ function ConvertTo-IcoMultiRes($image, $icon) {
 	$largestDimension = ""
 	$iconSized = ""
 	$algorithm = ""
-	$outputCount = 0
-	$outputFiles = @()
-	$outputExt = ""
-	$outputFile = ""
+	Set-Variable -Name outputCount -Value 0 -Scope Script
+	# $outputFiles = @()
 
 	if ($height -ge $width) {
 		$largestDimension = $height
@@ -86,70 +84,135 @@ function ConvertTo-IcoMultiRes($image, $icon) {
 	}
 	# echo $largestDimension
 	# if ($largestDimension -le $sizes_) {}
-	foreach ($size in $sizesPngNormal) {
-		$outputExt = "png"
-		# is less than or equal
-		if ($size -le $largestDimension) {
-			$iconSizedName = "$fileBaseName-$outputCount.$outputExt"
-			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
-			Convert-ImageNormal $image $size $iconSized
-			$outputCount++
-			$outputFiles += $iconSized
-		}
-	}
-	<# foreach ($size in $sizesPngSharper) {
-		$outputExt = "png"
-		# is less than or equal
-		if ($size -le $largestDimension) {
-			$iconSizedName = "$fileBaseName-$outputCount.$outputExt"
-			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
-			Convert-ImageNormal $image $size $iconSized
-			$outputCount++
-			$outputFiles += $iconSized
-		}
-	} #>
-	foreach ($size in $sizesIcoNormal) {
-		$outputExt = "ico"
-		# is less than or equal
-		if ($size -le $largestDimension) {
-			$iconSizedName = "$fileBaseName-$outputCount.$outputExt"
-			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
-			Convert-ImageNormal $image $size $iconSized
-			$outputCount++
-			$outputFiles += $iconSized
-		}
-	}
-	foreach ($size in $sizesIcoSharper) {
-		$outputExt = "ico"
-		# is less than or equal
-		if ($size -le $largestDimension) {
-			$iconSizedName = "$fileBaseName-$outputCount.$outputExt"
-			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
-			Convert-ImageNormal $image $size $iconSized
-			$outputCount++
-			$outputFiles += $iconSized
-		}
-	}
-	# & $magick $image -resize^> $largestDimension
-	# foreach ($s in $sizes) {
-	# 	if $width 
-	# }
-	# echo $iconTempDir
-	# echo child
-	# $test = Get-ChildItem -Path $iconTempDir
-	# echo $test
-	# & $magick $image -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=$sizes $icon
+	# echo $fileBaseName
+	# The canonical way to do this is `$outputCount = ConvertFrom-SizeList <...>`, but that would make it look misleading in this case, imo
+	ConvertFrom-SizeList $sizesPngNormal $largestDimension "normal" $image $iconTempDir $outputCount $fileBaseName "png"
+	Get-Variable -Name outputCount -Scope Script 1> $null
+	ConvertFrom-SizeList $sizesPngSharper $largestDimension "sharper" $image $iconTempDir $outputCount $fileBaseName "png"
+	Get-Variable -Name outputCount -Scope Script 1> $null
+	ConvertFrom-SizeList $sizesIcoNormal $largestDimension "normal" $image $iconTempDir $outputCount $fileBaseName "ico"
+	Get-Variable -Name outputCount -Scope Script 1> $null
+	ConvertFrom-SizeList $sizesIcoSharper $largestDimension "sharper" $image $iconTempDir $outputCount $fileBaseName "ico"
+	Get-Variable -Name outputCount -Scope Script 1> $null
 }
 
-function Convert-ImageNormal ($image, $size, $outputFile) {
-	# echo $image $size $outputFile
-	& $magick $image -resize $size -background none -gravity center -extent $size $outputFile
+function ConvertFrom-SizeList ($sizeList, $dimension, $algorithm, $inputImage, $outputDir, $outputCount, $outputBaseName, $outputExt) {
+	
+	$outputCountLocal = $outputCount
+
+	# Initialize variables
+	$iconSizedName = ""
+	$iconSized = ""
+
+	foreach ($size in $sizeList) {
+		$outputExt = "png"
+		# is less than or equal
+		# echo "l $outputCountLocal"
+		if ($size -le $dimension) {
+			$iconSizedName = "$outputBaseName-$outputCountLocal.$outputExt"
+			# echo "'$outputBaseName'"
+			# echo "'$iconSizedName'"
+			# echo $size
+			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
+			if ($algorithm -eq "sharper") {
+				Convert-ImageNormal $inputImage $size $iconSized
+			}
+			elseif ($algorithm -eq "normal") {
+				Convert-ImageSharper $inputImage $size $iconSized $dimension
+			} 
+			else {
+				Write-Error "Incorrect algorithm '$algorithm'"
+			}
+			$outputCountLocal++
+			# Get-Variable -Name outputCount -Scope Script
+			# echo "l $outputCountLocal"
+		}
+		# TODO Only resize if less than. If equal, only convert if not the correct format. I need to get input ext for that.
+	}
+	Set-Variable -Name outputCount -Value $outputCountLocal -Scope Script
+	# Get-Variable -Name outputCount -Scope Script
+	# echo "gccc $outputCount"
 }
 
-function Convert-ImageSharp ($image, $size, $outputFile) {
+function Convert-ImageNormal ($image, $outputSize, $outputFile) {
+	& $magick $image -resize $size -background none -gravity center -extent $outputSize $outputFile
+}
 
-	& $magick $image -resize $size -background none -gravity center -extent $size $outputFile
-	return
+function Convert-ImageSharper ($image, $outputSize, $outputFile, $inputSize) {
+	
+	$cubicBValue = 0.0
+	$cubicBlurValue = 1.05
+	$boxBlurValue = 0.707
+
+	# initialize variables
+	$scaleFactor = 0.0
+	$cubicCValue = 0.0
+	$useBoxFilter = $false
+	$boxFilterSize = 0
+	$boxFilterCrop1 = ""
+	$boxFilterCrop2 = ""
+	$boxFilterParameters = ""
+	$cubcFiltersParameters = ""
+	$parameters = ""
+
+	# XXX
+	# Determine scale factor
+	$scaleFactor = $outputSize / $inputSize
+	# echo $scaleFactor
+	if ($scaleFactor -gt 1) {
+		# Image enlargement
+		# TODO Test if ok to use floating point 1.0 instead of just 1
+		$cubicCValue = 1.0
+	}
+	elseif ($scaleFactor -ge 0.25 -and $scaleFactor -lt 1) {
+		$cubicCValue = 2.6 - (1.6 * $scaleFactor)
+	}
+	elseif (<# $scaleFactor -le ? -and  #>$scaleFactor -lt 0.25) {
+		$useBoxFilter = $true
+		$boxFilterSize = 4 * $outputSize
+		$cubicCValue = 2.2
+		$box_filter_scale_factor_a = $boxFilterSize / $inputSize
+		$box_filter_scale_factor_b = 1 - ($boxFilterSize / $inputSize)
+		# SRT = ScaleRotateTranslate
+		# +distort SRT X,Y ScaleX,ScaleY Angle NewX,NewY
+		$boxFilterSrt1 = "0,0 $box_filter_scale_factor_a,1.0 0 $box_filter_scale_factor_b,0.0"
+		# -crop: width x height + x offset + y offset
+		$boxFilterCrop1 = "$boxFilterSize" + "x" + "$inputSize+0+0"
+		# +distort SRT X,Y ScaleX,ScaleY Angle NewX,NewY
+		$boxFilterSrt2 = "0,0 1.0,$box_filter_scale_factor_a 0 0.0,$box_filter_scale_factor_a"
+		# -crop: width x height + x offset + y offset
+		$boxFilterCrop2 = "$boxFilterSize" + "x" + "$boxFilterSize+0+0"
+		$boxFilterParameters += "-filter box -define filter:blur=$boxBlurValue"
+		$boxFilterParameters += " +distort SRT ""$boxFilterSrt1"" -crop $boxFilterCrop1"
+		$boxFilterParameters += " +distort SRT ""$boxFilterSrt2"" -crop $boxFilterCrop2"
+		# echo "parameters: '$boxFilterParameters'"
+	}
+	elseif ($scaleFactor -eq 1) {
+		# TODO do not use cubic filter?
+		Write-Warning "Scale factor 1. Feature TBA."
+	}
+
+	# "Cubic Filters". https://imagemagick.org/Usage/filter/#cubics
+	# "Box". https://imagemagick.org/Usage/filter/#box
+	# "Scale-Rotate-Translate (SRT) Distortion". https://imagemagick.org/Usage/distorts/#srt
+	# "-crop". https://imagemagick.org/script/command-line-options.php#crop
+	# "Transpose and Transverse, Diagonally". https://imagemagick.org/Usage/warping/#transpose
+	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
+	# `-resize` keeps aspect ratio by default.
+	$resize = "$outputSize" + "x" + "$outputSize"
+	$parameters += """$image"""
+	$parameters += " $boxFilterParameters"
+	$parameters += " -transpose"
+	$parameters += " -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue"
+	$parameters += " -resize $resize"
+	$parameters += " -transpose"
+	$parameters += " ""$outputFile"""
+	# echo "command: '$magick $parameters'"
+	echo "command: '$magick $parameters'"
+	# echo $image
+	# & $magick $parameters # This doesn't work for some reason
+	& $magick "$image" -filter box -define filter:blur=$boxBlurValue +distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 +distort SRT "$boxFilterSrt2" -crop $boxFilterCrop2 -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose "$outputFile"
+	pause
 }
 
 # If first argument is a directory
