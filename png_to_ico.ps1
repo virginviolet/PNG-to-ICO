@@ -64,6 +64,21 @@ if ($null -eq $upscale) {
 # ImageMagick executable
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
 
+# Uncomment to set custom path
+# $magick = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
+
+# If magick.exe is not found in specified directory
+if (-not [bool](Test-Path -Path $magick)) {
+	if ([bool](Get-Command magick)) {
+		# Use magick.exe from environment variable if found
+		$magick = "magick"
+	}
+	else {
+		# Write and throw error
+		Write-Error "ImageMagick not found."
+		throw
+	}
+}
 
 # Old method to convert multi-res ico
 function ConvertTo-IcoMultiResOld {
