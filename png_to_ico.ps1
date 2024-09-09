@@ -35,6 +35,7 @@ Write-Output  "                          PNG to ICO :"
 Write-Output  " -------------------------------------------------------------"
 Write-Output "`n"
 
+
 # Script directory path
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
@@ -47,32 +48,37 @@ $argPath = $args[0]
 # ImageMagick executable
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
 
-function ConvertTo-IcoMultiResOld($image, $icon) {
+# Old method to convert multi-res ico
+function ConvertTo-IcoMultiResOld {
+	param (
+		$image,
+		$icon
+	)
 	$sizes = "256, 128, 96, 64, 48, 32, 24, 16"
 	& $magick $image -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=$sizes $icon
 }
 
-function ConvertTo-IcoMultiRes($image, $icon) {
-	if (-Not [bool](Test-Path -Path $tempDir)) {
-		New-Item -Path $thisIconTempDir -ItemType "directory"
-	}
+function ConvertTo-IcoMultiRes {
+	param (
+		$image,
+		$icon
+	)
 	$fileBaseName = (Get-ChildItem -Path $image).BaseName
-	$iconTempDirName = $fileBaseName + "_" + (New-Guid).Guid
-	$iconTempDir = Join-Path -Path $tempDir -ChildPath $iconTempDirName
-	# Create directory (and suppress Success stream output)
-	New-Item -Path $iconTempDir -ItemType "directory" 1> $null
-	# $sizePng = (256)
+	$iconTempName = $fileBaseName + "_" + (New-Guid).Guid
+	$iconTempDir = Join-Path -Path $tempDir -ChildPath $iconTempName
+	# Create temporary directory for this icon, for storing icons in different sizes (and suppress Success stream output)
+	if (-Not [bool](Test-Path -Path $iconTempDir)) {
+		New-Item -Path $iconTempDir -ItemType "directory" 1> $null
+	}
 	$sizesPngNormal = @(256)
 	$sizesPngSharper = @()
-	$sizesIcoNormal = @(128, 96)
-	$sizesIcoSharper = @(64, 48, 32, 24, 16)
-	$width = & $magick identify -ping -format '%w' $image
-	$height = & $magick identify -ping -format '%h' $image
+	$sizesIcoNormal = @(128)
+	$sizesIcoSharper = @(96, 64, 48, 32, 24, 16)
+	$width = [int](& $magick identify -ping -format '%w' $image)
+	$height = [int](& $magick identify -ping -format '%h' $image)
 	
 	# Initialize variables
 	$largestDimension = ""
-	$iconSized = ""
-	$algorithm = ""
 	Set-Variable -Name outputCount -Value 0 -Scope Script
 	# $outputFiles = @()
 
@@ -83,9 +89,8 @@ function ConvertTo-IcoMultiRes($image, $icon) {
 		$largestDimension = $width
 	}
 	# echo $largestDimension
-	# if ($largestDimension -le $sizes_) {}
 	# echo $fileBaseName
-	# The canonical way to do this is `$outputCount = ConvertFrom-SizeList <...>`, but that would make it look misleading in this case, imo
+	# The canonical way to do this is `$outputCount = ConvertFrom-SizeList <...>`, but that would look misleading in this case, imo
 	ConvertFrom-SizeList $sizesPngNormal $largestDimension "normal" $image $iconTempDir $outputCount $fileBaseName "png"
 	Get-Variable -Name outputCount -Scope Script 1> $null
 	ConvertFrom-SizeList $sizesPngSharper $largestDimension "sharper" $image $iconTempDir $outputCount $fileBaseName "png"
@@ -94,32 +99,53 @@ function ConvertTo-IcoMultiRes($image, $icon) {
 	Get-Variable -Name outputCount -Scope Script 1> $null
 	ConvertFrom-SizeList $sizesIcoSharper $largestDimension "sharper" $image $iconTempDir $outputCount $fileBaseName "ico"
 	Get-Variable -Name outputCount -Scope Script 1> $null
+
+	# Take all the icon files created (same image, different sizes) and assemble into a multi-res icon
+	Merge-Icons $iconTempDir $iconTempName $icon
+	Remove-Item $iconTempDir -Recurse
+	Remove-Item $tempDir -Recurse
 }
 
-function ConvertFrom-SizeList ($sizeList, $dimension, $algorithm, $inputImage, $outputDir, $outputCount, $outputBaseName, $outputExt) {
+function ConvertFrom-SizeList {
+	param (
+		$sizeList,
+		$dimension,
+		$algorithm,
+		$inputImage,
+		$outputDir,
+		$outputCount,
+		$outputBaseName,
+		$outputExt
+	)
 	
+	$inputExt = (Get-ChildItem -Path $inputImage).Extension
 	$outputCountLocal = $outputCount
 
 	# Initialize variables
 	$iconSizedName = ""
 	$iconSized = ""
 
+	# echo "$dimension $sizesPngNormal[-1] $sizesPngSharper[-1] $sizesIcoNormal[-1]) $sizesIcoSharper[-1]"
+	# echo $dimension
+	# echo $sizesIcoSharper[-1]
 	foreach ($size in $sizeList) {
-		$outputExt = "png"
-		# is less than or equal
 		# echo "l $outputCountLocal"
-		if ($size -le $dimension) {
-			$iconSizedName = "$outputBaseName-$outputCountLocal.$outputExt"
-			# echo "'$outputBaseName'"
-			# echo "'$iconSizedName'"
-			# echo $size
-			$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
+		# Only resize if original image is greater than $size
+		$iconSizedName = "$outputBaseName-$outputCountLocal.$outputExt"
+		# echo "'$outputBaseName'"
+		# echo "'$iconSizedName'"
+		# echo $size
+		$iconSized = Join-Path -Path $iconTempDir -ChildPath $iconSizedName
+		if ($dimension -gt $size) {
+			# echo one
 			if ($algorithm -eq "sharper") {
-				Convert-ImageNormal $inputImage $size $iconSized
+				# echo "$size sharp"
+				Convert-ImageResizeSharper $inputImage $size $iconSized $dimension
 			}
 			elseif ($algorithm -eq "normal") {
-				Convert-ImageSharper $inputImage $size $iconSized $dimension
-			} 
+				# echo "$size normal"
+				Convert-ImageResizeNormal $inputImage $size $iconSized
+			}
 			else {
 				Write-Error "Incorrect algorithm '$algorithm'"
 			}
@@ -127,19 +153,75 @@ function ConvertFrom-SizeList ($sizeList, $dimension, $algorithm, $inputImage, $
 			# Get-Variable -Name outputCount -Scope Script
 			# echo "l $outputCountLocal"
 		}
-		# TODO Only resize if less than. If equal, only convert if not the correct format. I need to get input ext for that.
+		# If original image is equal to $size, and the format is different, then convert without resize
+		elseif (($dimension -eq $size) -and ($outputExt -ne $inputExt)) {
+			# echo two
+			# [x] Test
+			Convert-Image $inputImage $iconSized
+			$outputCountLocal++
+		}
+		# If original image is equal to $size, and the format is the same, then simply copy the file to our temporary location where it will be included
+		elseif (($dimension -eq $size) -and ($outputExt -eq $inputExt)) {
+			echo three
+			# [x] Test
+			Copy-Item -Path "$inputImage" -Destination "$iconSized"
+			$outputCountLocal++
+		}
+		# If upscaling is enabled, and the original image is smaller than $size
+		elseif (($upscale -eq $true) -and ($dimension -lt $size)) {
+			Convert-ImageResizeNormal $inputImage $size $iconSized
+			$outputCountLocal++
+		}
+		# If original image is smaller than anything in the lists (and upscaling is disabled)
+		# (`[-1]` gets the last item i the list. The `$null -eq` check is necessary in case the list is empty.)
+		elseif (
+			($dimension -lt $sizesPngNormal[-1] -or $null -eq $sizesPngNormal[-1]) -and
+			($dimension -lt $sizesPngSharper[-1] -or $null -eq $sizesPngSharper[-1]) -and
+			($dimension -lt $sizesIcoNormal[-1] -or $null -eq $sizesIcoNormal[-1]) -and
+			($dimension -lt $sizesIcoSharper[-1] -or $null -eq $sizesIcoSharper[-1])) {
+				# IMPROVE Make this not run more times than necessary. It currently runs onece for each time time this function is called.
+				# This piece of code could be moved to ConvertTo-IcoMultiRes, which would solve the problem, but it feels more organized to keep it here. The performance loss is negligible, unless, perhaps, someone tries to batch convert a huge amount of tiny files, but that's not a very plausible scenario, I think.
+				Convert-Image $inputImage $iconSized
+				$outputCountLocal++
+				return
+			}
+
+		# Pause
 	}
 	Set-Variable -Name outputCount -Value $outputCountLocal -Scope Script
 	# Get-Variable -Name outputCount -Scope Script
 	# echo "gccc $outputCount"
+
 }
 
-function Convert-ImageNormal ($image, $outputSize, $outputFile) {
-	& $magick $image -resize $size -background none -gravity center -extent $outputSize $outputFile
+function Convert-Image {
+	param (
+		$image,
+		$outputFile
+	)
+	# echo "command: '$magick ""$image"" ""$outputFile""'"
+	& $magick "$image" "$outputFile"
+}
+function Convert-ImageResizeNormal {
+	param (
+		$inputFile,
+		$outputSize,
+		$outputFile
+	)
+	# Convert+Resize with Image Magick
+	$resize = "$outputSize" + "x" + "$outputSize"
+	# & $magick "$inputFile" -resize $resize -background none -gravity center -extent $outputSize "$outputFile"
+	& $magick "$inputFile" `
+	-resize $resize `
+	"$outputFile"
 }
 
-function Convert-ImageSharper ($image, $outputSize, $outputFile, $inputSize) {
-	
+function Convert-ImageResizeSharper {
+	param (
+		$inputFile,
+		$outputSize,
+		$outputFile,
+		$inputSize)
 	$cubicBValue = 0.0
 	$cubicBlurValue = 1.05
 	$boxBlurValue = 0.707
@@ -155,19 +237,22 @@ function Convert-ImageSharper ($image, $outputSize, $outputFile, $inputSize) {
 	$cubcFiltersParameters = ""
 	$parameters = ""
 
-	# XXX
 	# Determine scale factor
+	# echo "$outputSize / $inputSize"
 	$scaleFactor = $outputSize / $inputSize
 	# echo $scaleFactor
 	if ($scaleFactor -gt 1) {
+		# [x] test
 		# Image enlargement
-		# TODO Test if ok to use floating point 1.0 instead of just 1
+		# echo enlargement
 		$cubicCValue = 1.0
 	}
 	elseif ($scaleFactor -ge 0.25 -and $scaleFactor -lt 1) {
+		# echo here
 		$cubicCValue = 2.6 - (1.6 * $scaleFactor)
 	}
 	elseif (<# $scaleFactor -le ? -and  #>$scaleFactor -lt 0.25) {
+		# echo box
 		$useBoxFilter = $true
 		$boxFilterSize = 4 * $outputSize
 		$cubicCValue = 2.2
@@ -182,14 +267,10 @@ function Convert-ImageSharper ($image, $outputSize, $outputFile, $inputSize) {
 		$boxFilterSrt2 = "0,0 1.0,$box_filter_scale_factor_a 0 0.0,$box_filter_scale_factor_a"
 		# -crop: width x height + x offset + y offset
 		$boxFilterCrop2 = "$boxFilterSize" + "x" + "$boxFilterSize+0+0"
-		$boxFilterParameters += "-filter box -define filter:blur=$boxBlurValue"
-		$boxFilterParameters += " +distort SRT ""$boxFilterSrt1"" -crop $boxFilterCrop1"
-		$boxFilterParameters += " +distort SRT ""$boxFilterSrt2"" -crop $boxFilterCrop2"
-		# echo "parameters: '$boxFilterParameters'"
 	}
 	elseif ($scaleFactor -eq 1) {
-		# TODO do not use cubic filter?
-		Write-Warning "Scale factor 1. Feature TBA."
+		Write-Warning "Attempted to resize with scale factor 1.0."
+		Pause
 	}
 
 	# "Cubic Filters". https://imagemagick.org/Usage/filter/#cubics
@@ -200,19 +281,51 @@ function Convert-ImageSharper ($image, $outputSize, $outputFile, $inputSize) {
 	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
 	# `-resize` keeps aspect ratio by default.
 	$resize = "$outputSize" + "x" + "$outputSize"
-	$parameters += """$image"""
-	$parameters += " $boxFilterParameters"
-	$parameters += " -transpose"
-	$parameters += " -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue"
-	$parameters += " -resize $resize"
-	$parameters += " -transpose"
-	$parameters += " ""$outputFile"""
-	# echo "command: '$magick $parameters'"
-	echo "command: '$magick $parameters'"
-	# echo $image
-	# & $magick $parameters # This doesn't work for some reason
-	& $magick "$image" -filter box -define filter:blur=$boxBlurValue +distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 +distort SRT "$boxFilterSrt2" -crop $boxFilterCrop2 -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose "$outputFile"
-	pause
+	# echo $outputFile
+	if ($useBoxFilter) {
+		# echo box
+		& $magick "$inputFile" `
+		-filter box -define filter:blur=$boxBlurValue `
+		+distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 `
+		+distort SRT "$boxFilterSrt2" -crop $boxFilterCrop2 `
+		-transpose `
+		-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
+		-resize $resize `
+		-transpose `
+		"$outputFile"
+	}
+	else {
+		# [x] Compare with and without transpose (It makes no difference)
+		# echo "no box"
+		# echo "command: '$magick ""$inputFile"" -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose ""$outputFile""'"
+		& $magick "$inputFile" `
+		-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
+		-resize $resize `
+		"$outputFile"
+	}
+}
+
+function Merge-Icons {
+	param (
+		$inputDir,
+		$tempName,
+		$outputIcon
+	)
+	echo $outputIcon
+	$files = Join-Path -Path $inputDir -ChildPath "\*"
+	$tempFile = Join-Path -Path $tempDir -ChildPath "$tempName.ico"
+	& $magick "$files" "$tempFile"
+	if ([bool](Get-Item $outputIcon)) {
+		Move-Item -Path $tempFile -Destination $outputIcon -Force -Confirm
+	}
+	else {
+		Move-Item -Path $tempFile -Destination $outputIcon
+	}
+}
+
+# Create temporary directory for this script (unless it for some reason exists, and suppress Success stream output)
+if (-Not [bool](Test-Path -Path $tempDir)) {
+	New-Item -Path $tempDir -ItemType "directory" 1> $null
 }
 
 # If first argument is a directory
@@ -222,6 +335,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 
 	# Get images in directory
 	$dirContents = Join-Path $argPath -ChildPath '*'
+	# TODO Add more formats? Ico?
 	$images = Get-ChildItem ($dirContents) -Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg
 
 	# Iterate through the images
