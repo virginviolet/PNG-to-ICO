@@ -45,8 +45,25 @@ $tempDir = Join-Path -Path $env:TEMP -ChildPath "PNG-to-ICO"
 # First command line argument
 $argPath = $args[0]
 
+if ($null -eq $argPath) {
+	Write-Output "Usage: png_to_ico.ps1 <file|directory> [<allow upscale>]"
+	Write-Output "`nExamples`n"
+	Write-Output "png_to_ico.ps1 C:\Users\John\Desktop\my_image.png"
+	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my images"""
+	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my tiny image.png"" true"
+	return
+}
+
+# Set to $true to to include sizes in multi-res ICOs that exceeds the original size of the image
+$upscale = $args[1]
+if ($null -eq $upscale) {
+	# Set to $false if not specified
+	$upscale = $false
+}
+
 # ImageMagick executable
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
+
 
 # Old method to convert multi-res ico
 function ConvertTo-IcoMultiResOld {
