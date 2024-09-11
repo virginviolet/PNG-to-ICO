@@ -98,7 +98,7 @@ $iconsFinalDir = Join-Path -Path $argPath -ChildPath "ICO"
 
 # Subdirectory, relative to input image's directory, to save all icons in (only used when first argument is a file)
 # Default: Save icon to the same folder as input image
-$singleIconFinalDirName = "TEST"
+$singleIconFinalDirName = ""
 
 # Uncomment to set custom path
 # $singleIconFinalDir = "C:\Users\John\My icons"
@@ -140,11 +140,10 @@ function ConvertTo-IcoMultiResOld {
 function ConvertTo-IcoMultiRes {
 	param (
 		$image,
+		$iconBaseName,
 		$icon
 	)
-	$imageBaseName = (Get-ChildItem -Path $image).BaseName
-	$iconTempName = $imageBaseName + "_" + (New-Guid).Guid
-	$subiconsDir = Join-Path -Path $subiconsDirParent -ChildPath $iconTempName
+	$subiconsDir = Join-Path -Path $subiconsDirParent -ChildPath $iconBaseName
 	
 	# Create temporary directory for this icon, for storing subicons
 	if (-Not [bool](Test-Path -Path $subiconsDir)) {
@@ -170,22 +169,24 @@ function ConvertTo-IcoMultiRes {
 	}
 
 	# echo $imageSize
-	# echo $imageBaseName
+	# echo $iconBaseName
 
 	# Make subicons
 	# We need the function to update the value of $subiconCount. The canonical way to do this would be `$subiconCount = ConvertFrom-SizeList <...>`, but that would make it look like the purpose of that function is only to update the subiconCount value. Instead, we set and get the variable in the Script scope.
 	# $subiconCount is suffixed to the subicon file names.
 	Set-Variable -Name subiconCount -Value 0 -Scope Script # Initialize variable
-	ConvertFrom-SizeList $sizesPngNormal $imageSize "normal" $image $subiconsDir $subiconCount $imageBaseName "png"
+	ConvertFrom-SizeList $sizesPngNormal $imageSize "normal" $image $subiconsDir $subiconCount $iconBaseName "png"
+	# Pause
 	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesPngSharper $imageSize "sharper" $image $subiconsDir $subiconCount $imageBaseName "png"
+	ConvertFrom-SizeList $sizesPngSharper $imageSize "sharper" $image $subiconsDir $subiconCount $iconBaseName "png"
+	# Pause
 	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesIcoNormal $imageSize "normal" $image $subiconsDir $subiconCount $imageBaseName "ico"
+	ConvertFrom-SizeList $sizesIcoNormal $imageSize "normal" $image $subiconsDir $subiconCount $iconBaseName "ico"
 	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesIcoSharper $imageSize "sharper" $image $subiconsDir $subiconCount $imageBaseName "ico"
+	ConvertFrom-SizeList $sizesIcoSharper $imageSize "sharper" $image $subiconsDir $subiconCount $iconBaseName "ico"
 	Get-Variable -Name subiconCount -Scope Script 1> $null
 
-	New-MultiResIcon $subiconsDir $iconTempName $icon
+	New-MultiResIcon $subiconsDir $iconBaseName $icon
 	Pause
 	# Take all the subicons created and assemble into a multi-res icon
 	Remove-Item $subiconsDirParent -Recurse
@@ -425,7 +426,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$images = Get-ChildItem -Path $dirContents -Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg
 	# Iterate through the images
 	# Write-Host "file count: $($images.Count)"
-	ForEach ($i in $images) {
+	foreach ($i in $images) {
 		# echo "images $images"
 
 		# Print image file name (with extension)
@@ -437,12 +438,16 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 		# echo "image: $imageName"
 		$dir = $unfinishedDir
 		$imageBaseName = (Get-Item -Path $i).BaseName # Name without extension
-		$icon = Join-Path -Path $dir -ChildPath "$imageBaseName.ico"
+		$iconTempBaseName = $imageBaseName + "_" + (New-Guid).Guid
+		$iconBaseName = $imageBaseName
+		# $iconTemp = Join-Path -Path $dir -ChildPath "$iconTempBaseName.ico"
+		$icon = Join-Path -Path $dir -ChildPath "$iconBaseName.ico"
 		# echo "icon $icon"
-		ConvertTo-IcoMultiRes $image $icon
+		ConvertTo-IcoMultiRes $image $iconTempBaseName $icon
+		# pause
 	}
 
-	Pause
+	# Pause
 	# Move directory with icons to a directory for finished directories, where icons will be before they are moved to their final destination
 	# (This could technically be skipped, but it makes it arguably easier to debug; adds more intuitive file structure)
 	# First set the path
@@ -458,6 +463,9 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# echo "unfinishedDir $unfinishedDir"
 	Move-Item -Path $unfinishedDir -Destination $finishedDir
 	
+	# Remove the now empty directory where unfinished data was stored
+	Remove-Item $unfinishedDirParent
+
 	# Create final destination directory for the icons (unless the directory already exists)
 	# echo "iconsFinalDir $iconsFinalDir"
 	if (-not [bool](Test-Path -Path $iconsFinalDir)) {
@@ -499,10 +507,8 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 
 	# Pause
 	Remove-Item $tempDir -Recurse
-	Remove-Item $tempDir -Recurse
 	# If first argument is a file
 } ELSE {
-	#FIXME
 	Write-Verbose "File : $argPath"
 
 	# Print image file name (with extension)
@@ -515,28 +521,50 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$image = $argPath
 	$dir = $unfinishedDir
 	$imageBaseName = (Get-Item -Path $argPath).BaseName # Name without extension
-	$icon = Join-Path -Path $dir -ChildPath "$imageBaseName.ico"
-	ConvertTo-IcoMultiRes $image $icon
-	# echo $icon
+	$iconTempBaseName = $imageBaseName + "_" + (New-Guid).Guid
+	$iconTemp = Join-Path -Path $dir -ChildPath "$iconTempBaseName.ico"
+	ConvertTo-IcoMultiRes $image $iconTempBaseName $iconTemp
+	# echo $iconTemp
 
 	# Move icon to a temporary directory for finished icon.
 	# (This could technically be skipped, but it makes it arguably easier to debug; adds more intuitive file structure)
 	$finishedDir = $finishedSingleIconDir
-	Move-Item -Path $icon -Destination $finishedDir
+	$finishedIcon = Join-Path -Path $finishedDir -ChildPath "$iconTempBaseName.ico"
+	# echo "fd $finishedDir"
+	# echo "fi $finishedIcon"
+	if (-not [bool](Test-Path -Path $finishedDir)) {
+		New-Item $finishedDir -ItemType "directory" 1> $null
+	}
+	Move-Item -Path $iconTemp -Destination $finishedIcon
+
+	# Remove the now empty directory where unfinished data was stored
+	Remove-Item $unfinishedDirParent
 
 	# Move icon to its final destination
-	$imageDir = Resolve-Path -Path $(Get-Item $argPath)
-	$singleIconFinalDir = Join-Path -Path $imageDir -ChildItem "$singleIconFinalDir" # Set full path
-	
+	$imageDir = Resolve-Path -Path $((Get-Item $argPath).Directory)
+	# echo "im dir $imageDir"
+	$singleIconFinalDir = Join-Path -Path $imageDir -ChildPath "$singleIconFinalDirName" # Set full path
+	if (-not [bool](Test-Path -Path $singleIconFinalDir)) {
+		New-Item $singleIconFinalDir -ItemType "directory" 1> $null
+	}
+
 	# Check if icon already exists
-	$iconDestination = Join-Path -Path $singleIconFinalDir -ChildPath $imageBaseName
+	$iconDestination = Join-Path -Path $singleIconFinalDir -ChildPath "$imageBaseName.ico"
+	# echo "ic d $iconDestination"
 	# ("leaf" means it's a file and not a directory)
 	if ([bool](Test-Path -Path $iconDestination -PathType leaf)) {
-		Move-Item -Path $icon -Destination $argPath -Force -Confirm
+		Move-Item -Path $finishedIcon -Destination $iconDestination -Force -Confirm
 	}
 	else {
-		Move-Item -Path $tempFile -Destination $argPath
+		Move-Item -Path $finishedIcon -Destination $iconDestination
 	}
+
+	# Remove the now empty temporary completed directory
+	# echo "will remove"
+	Remove-Item $finishedDir
+
+	# Remove the now temporary directory
+	Remove-Item $tempDir -Recurse
 
 	# Remove-Item $tempDir -Recurse
 }
