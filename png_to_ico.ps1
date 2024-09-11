@@ -45,13 +45,19 @@ $tempDir = Join-Path -Path $env:TEMP -ChildPath "PNG-to-ICO"
 # First command line argument
 $argPath = $args[0]
 
+# If no parameter is specified
 if ($null -eq $argPath) {
+	# Explain how to use this script
 	Write-Output "Usage: png_to_ico.ps1 <file|directory> [<allow upscale>]"
 	Write-Output "`nExamples`n"
 	Write-Output "png_to_ico.ps1 C:\Users\John\Desktop\my_image.png"
 	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my images"""
 	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my tiny image.png"" true"
 	return
+}
+else {
+	# Turn the string into a path
+	$argPath = Resolve-Path -Path $argPath
 }
 
 # Set to $true to to include sizes in multi-res ICOs that exceeds the original size of the image
@@ -90,6 +96,7 @@ function ConvertTo-IcoMultiResOld {
 	& $magick $image -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=$sizes $icon
 }
 
+# TODO Order of functions 
 function ConvertTo-IcoMultiRes {
 	param (
 		$image,
@@ -97,6 +104,8 @@ function ConvertTo-IcoMultiRes {
 	)
 	$fileBaseName = (Get-ChildItem -Path $image).BaseName
 	$iconTempName = $fileBaseName + "_" + (New-Guid).Guid
+	# XXX
+	# FIXME It adds icon to $tempDir instead of a subdirectory for all images
 	$iconTempDir = Join-Path -Path $tempDir -ChildPath $iconTempName
 	# Create temporary directory for this icon, for storing icons in different sizes (and suppress Success stream output)
 	if (-Not [bool](Test-Path -Path $iconTempDir)) {
@@ -135,7 +144,6 @@ function ConvertTo-IcoMultiRes {
 	# Take all the icon files created (same image, different sizes) and assemble into a multi-res icon
 	Merge-Icons $iconTempDir $iconTempName $icon
 	Remove-Item $iconTempDir -Recurse
-	Remove-Item $tempDir -Recurse
 }
 
 function ConvertFrom-SizeList {
@@ -343,11 +351,13 @@ function Merge-Icons {
 		$tempName,
 		$outputIcon
 	)
-	echo $outputIcon
+	echo "outputicon $outputIcon"
 	$files = Join-Path -Path $inputDir -ChildPath "\*"
 	$tempFile = Join-Path -Path $tempDir -ChildPath "$tempName.ico"
 	& $magick "$files" "$tempFile"
-	if ([bool](Get-Item $outputIcon)) {
+	
+	# Check if exists
+	if ([bool](Test-Path -Path $outputIcon)) {
 		Move-Item -Path $tempFile -Destination $outputIcon -Force -Confirm
 	}
 	else {
@@ -360,29 +370,52 @@ if (-Not [bool](Test-Path -Path $tempDir)) {
 	New-Item -Path $tempDir -ItemType "directory" 1> $null
 }
 
+# TODO change "fileBaseName" in variables
 # If first argument is a directory
 IF ([bool](Test-Path $argPath -PathType container)) {
 	
 	Write-Verbose "Directory : $argPath"
 
+	# Name of the directory
+	# In this script, "image" means image that is not yet converted to ico.
+	$imagesDirName = (Get-Item -Path $argPath).Name
+	# Name of subdirectory to save the icons to
+	$iconsDirName = "ICO"
+	$iconsDir = Join-Path -Path $argPath -ChildPath $iconsDirName
+
+	# Create temporary directory to store the files in (and suppress Succes stream output)
+	# (This enables for overwriting all existing files with "[A]")
+	$tempIconsDirName = "$imagesDirName" + "_" + (New-Guid).Guid
+	$tempIconsDir = Join-Path -Path $tempDir -ChildPath "$tempIconsDirName"
+	New-Item $tempIconsDir -ItemType "directory" 1> $null
+
 	# Get images in directory
 	$dirContents = Join-Path $argPath -ChildPath '*'
 	# TODO Add more formats? Ico?
 	$images = Get-ChildItem ($dirContents) -Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg
-
 	# Iterate through the images
-	FOREACH ($i IN $images) {
+	foreach ($i in $images) {
 
 		# Print file name (with extension)
 		$fileName = $i.Name
 		Write-Output "- $fileName"
 
 		# Convert file to multi-resolution ICO
-		$image = Resolve-Path -Path $i
-		$dir = Resolve-Path -Path $argPath
+		$image = $i
+		$dir = $tempIconsDir
 		$fileBaseName = (Get-Item -Path $i).BaseName # Name without extension
 		$icon = Join-Path -Path $dir -ChildPath "$fileBaseName.ico"
+		# echo $icon
 		ConvertTo-IcoMultiRes $image $icon
+
+		# Move each file from the temporary directory to a subdirectory in the original directory
+		$icons = Get-ChildItem ($tempIconsDir)
+	
+	foreach ($i in $icons) {
+		Move-Item -Path $i -Destination $iconsDir
+	}
+
+	# Remove-Item $tempDir -Recurse
 	}
 	# If first argument is a file
 } ELSE {
@@ -399,4 +432,6 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$fileBaseName = (Get-Item -Path $argPath).BaseName # Name without extension
 	$icon = Join-Path -Path $dir -ChildPath "$fileBaseName.ico"
 	ConvertTo-IcoMultiRes $image $icon
+
+	# Remove-Item $tempDir -Recurse
 }
