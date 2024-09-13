@@ -121,21 +121,8 @@ $finishedSingleIconDir = Join-Path -Path $tempDir -ChildPath "Finished"
 # Default: icon directories go into "Finished"
 $finishedDirParent = Join-Path -Path $tempDir -ChildPath "Finished"
 
-# TODO Clear working folder before creating new icon
-
-# TODO Order of functions
 
 # Functions
-
-# Old method to convert multi-res ico
-function ConvertTo-IcoMultiResOld {
-	param (
-		$image,
-		$icon
-	)
-	$sizes = "256, 128, 96, 64, 48, 32, 24, 16"
-	& $magick $image -resize 256x256^> -background none -gravity center -extent 256x256 -define icon:auto-resize=$sizes $icon
-}
 
 function ConvertTo-IcoMultiRes {
 	param (
@@ -241,15 +228,12 @@ function ConvertFrom-SizeList {
 		# If original image is equal to $size, and the format is different, then convert without resize
 		elseif (($imageSize -eq $size) -and ($outputExt -ne $inputExt)) {
 			# echo two
-			# [x] Test
 			Convert-Image $inputImage $subicon
 			$subiconCountLocal++
 		}
 		# If original image is equal to $size, and the format is the same, then simply copy the image to the subicons directory
 		elseif (($imageSize -eq $size) -and ($outputExt -eq $inputExt)) {
 			echo three
-			# TODO Remove completed todos
-			# [x] Test
 			Copy-Item -Path "$inputImage" -Destination "$subicon"
 			$subiconCountLocal++
 		}
@@ -328,7 +312,6 @@ function Convert-ImageResizeSharper {
 	$scaleFactor = $outputSize / $inputSize
 	# echo $scaleFactor
 	if ($scaleFactor -gt 1) {
-		# [x] test
 		# Image enlargement
 		# echo enlargement
 		$cubicCValue = 1.0
@@ -381,8 +364,6 @@ function Convert-ImageResizeSharper {
 		"$outputFile"
 	}
 	else {
-		# [x] Compare with and without transpose (It makes no difference)
-		# echo "no box"
 		# echo "command: '$magick ""$inputFile"" -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose ""$outputFile""'"
 		& $magick "$inputFile" `
 		-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
@@ -568,3 +549,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 
 	# Remove-Item $tempDir -Recurse
 }
+
+# IMPROVE Error handling
+# IMPROVE Check if files in temporary directory when starting, prompt user for action if found
+# IMPROVE Get-Data function
