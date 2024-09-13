@@ -78,8 +78,7 @@ if ($null -eq $argPath) {
 	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my images"""
 	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my tiny image.png"" true"
 	return
-}
-else {
+} else {
 	# Turn the string into a path
 	$argPath = Resolve-Path -Path $argPath
 }
@@ -183,8 +182,7 @@ function ConvertTo-IcoMultiRes {
 	# Only the largest dimension is needed
 	if ($height -ge $width) {
 		$imageSize = $height
-	}
-	else {
+	} else {
 		$imageSize = $width
 	}
 
@@ -246,12 +244,10 @@ function ConvertFrom-SizeList {
 			if ($algorithm -eq "sharper") {
 				# echo "$size sharp"
 				Convert-ImageResizeSharper $inputImage $size $subicon $imageSize
-			}
-			elseif ($algorithm -eq "normal") {
+			} elseif ($algorithm -eq "normal") {
 				# echo "$size normal"
 				Convert-ImageResizeNormal $inputImage $size $subicon
-			}
-			else {
+			} else {
 				Write-Error "Incorrect algorithm '$algorithm'"
 			}
 			$subiconCountLocal++
@@ -266,7 +262,7 @@ function ConvertFrom-SizeList {
 		}
 		# If original image is equal to $size, and the format is the same, then simply copy the image to the subicons directory
 		elseif (($imageSize -eq $size) -and ($outputExt -eq $inputExt)) {
-			echo three
+			# echo three
 			Copy-Item -Path "$inputImage" -Destination "$subicon"
 			$subiconCountLocal++
 		}
@@ -282,13 +278,13 @@ function ConvertFrom-SizeList {
 			($imageSize -lt $sizesPngSharper[-1] -or $null -eq $sizesPngSharper[-1]) -and
 			($imageSize -lt $sizesIcoNormal[-1] -or $null -eq $sizesIcoNormal[-1]) -and
 			($imageSize -lt $sizesIcoSharper[-1] -or $null -eq $sizesIcoSharper[-1])) {
-				# IMPROVE Make this not run more times than necessary. It currently runs onece for each time time this function is called.
-				# This piece of code could be moved to ConvertTo-IcoMultiRes, which would solve the problem, but it feels more organized to keep it here. The performance loss is negligible, unless, perhaps, someone tries to batch convert a huge amount of tiny files, but that's not a very plausible scenario, I think.
-				Convert-Image $inputImage $subicon
-				$subiconCountLocal++
-				# echo returning
-				return
-			}
+			# IMPROVE Make this not run more times than necessary. It currently runs onece for each time time this function is called.
+			# This piece of code could be moved to ConvertTo-IcoMultiRes, which would solve the problem, but it feels more organized to keep it here. The performance loss is negligible, unless, perhaps, someone tries to batch convert a huge amount of tiny files, but that's not a very plausible scenario, I think.
+			Convert-Image $inputImage $subicon
+			$subiconCountLocal++
+			# echo returning
+			return
+		}
 
 		# Pause
 	}
@@ -318,8 +314,8 @@ function Convert-ImageResizeNormal {
 	$resize = "$outputSize" + "x" + "$outputSize"
 	# & $magick "$inputFile" -resize $resize -background none -gravity center -extent $outputSize "$outputFile"
 	& $magick "$inputFile" `
-	-resize $resize `
-	"$outputFile"
+		-resize $resize `
+		"$outputFile"
 }
 
 function Convert-ImageResizeSharper {
@@ -328,7 +324,7 @@ function Convert-ImageResizeSharper {
 		$outputSize,
 		$outputFile,
 		$inputSize
-		)
+	)
 
 	# "Cubic Filters". https://imagemagick.org/Usage/filter/#cubics
 	# "Box". https://imagemagick.org/Usage/filter/#box
@@ -358,12 +354,10 @@ function Convert-ImageResizeSharper {
 		# Image enlargement
 		# echo enlargement
 		$cubicCValue = 1.0
-	}
-	elseif ($scaleFactor -ge 0.25 -and $scaleFactor -lt 1) {
+	} elseif ($scaleFactor -ge 0.25 -and $scaleFactor -lt 1) {
 		# echo here
 		$cubicCValue = 2.6 - (1.6 * $scaleFactor)
-	}
-	elseif (<# $scaleFactor -le ? -and  #>$scaleFactor -lt 0.25) {
+	} elseif (<# $scaleFactor -le ? -and  #>$scaleFactor -lt 0.25) {
 		# echo box
 		$useBoxFilter = $true
 		$boxFilterSize = 4 * $outputSize
@@ -379,8 +373,7 @@ function Convert-ImageResizeSharper {
 		$boxFilterSrt2 = "0,0 1.0,$box_filter_scale_factor_a 0 0.0,$box_filter_scale_factor_a"
 		# -crop: width x height + x offset + y offset
 		$boxFilterCrop2 = "$boxFilterSize" + "x" + "$boxFilterSize+0+0"
-	}
-	elseif ($scaleFactor -eq 1) {
+	} elseif ($scaleFactor -eq 1) {
 		Write-Warning "Attempted to resize with scale factor 1.0."
 		Pause
 	}
@@ -392,21 +385,20 @@ function Convert-ImageResizeSharper {
 	if ($useBoxFilter) {
 		# echo box
 		& $magick "$inputFile" `
-		-filter box -define filter:blur=$boxBlurValue `
-		+distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 `
-		+distort SRT "$boxFilterSrt2" -crop $boxFilterCrop2 `
-		-transpose `
-		-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
-		-resize $resize `
-		-transpose `
-		"$outputFile"
-	}
-	else {
+			-filter box -define filter:blur=$boxBlurValue `
+			+distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 `
+			+distort SRT "$boxFilterSrt2" -crop $boxFilterCrop2 `
+			-transpose `
+			-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
+			-resize $resize `
+			-transpose `
+			"$outputFile"
+	} else {
 		# echo "command: '$magick ""$inputFile"" -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose ""$outputFile""'"
 		& $magick "$inputFile" `
-		-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
-		-resize $resize `
-		"$outputFile"
+			-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
+			-resize $resize `
+			"$outputFile"
 	}
 }
 
@@ -438,8 +430,7 @@ if (-not [bool](Test-Path -Path $magick)) {
 	if ([bool](Get-Command magick)) {
 		# Use magick.exe from environment variable if found
 		$magick = "magick"
-	}
-	else {
+	} else {
 		# Write and throw error
 		Write-Error "ImageMagick not found."
 		throw
@@ -536,8 +527,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 		if ([bool](Test-Path $iconDestination)) {
 			# Confirm overwrite
 			Move-Item -Path $icon -Destination $iconDestination -Force -Confirm
-		}
-		else {
+		} else {
 			# Move without confirmation
 			Move-Item -Path $icon -Destination $iconDestination
 		}
@@ -597,8 +587,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# ("leaf" means it's a file and not a directory)
 	if ([bool](Test-Path -Path $iconDestination -PathType leaf)) {
 		Move-Item -Path $finishedIcon -Destination $iconDestination -Force -Confirm
-	}
-	else {
+	} else {
 		Move-Item -Path $finishedIcon -Destination $iconDestination
 	}
 
