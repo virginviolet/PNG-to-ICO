@@ -1,19 +1,44 @@
-<#
- 	Name :
-				PNG to ICO
-	Author :
-				▄▄▄▄▄▄▄  ▄ ▄▄ ▄▄▄▄▄▄▄
-				█ ▄▄▄ █ ██ ▀▄ █ ▄▄▄ █
-				█ ███ █ ▄▀ ▀▄ █ ███ █
-				█▄▄▄▄▄█ █ ▄▀█ █▄▄▄▄▄█
-				▄▄ ▄  ▄▄▀██▀▀ ▄▄▄ ▄▄
-				 ▀█▄█▄▄▄█▀▀ ▄▄▀█ █▄▀█
-				 █ █▀▄▄▄▀██▀▄ █▄▄█ ▀█
-				▄▄▄▄▄▄▄ █▄█▀ ▄ ██ ▄█
-				█ ▄▄▄ █  █▀█▀ ▄▀▀  ▄▀
-				█ ███ █ ▀▄  ▄▀▀▄▄▀█▀█
-				█▄▄▄▄▄█ ███▀▄▀ ▀██ ▄ 
-#>
+#########################################################################################
+#
+#	Name :
+#				PNG to ICO
+#	Author :
+#				▄▄▄▄▄▄▄  ▄ ▄▄ ▄▄▄▄▄▄▄
+#				█ ▄▄▄ █ ██ ▀▄ █ ▄▄▄ █
+#				█ ███ █ ▄▀ ▀▄ █ ███ █
+#				█▄▄▄▄▄█ █ ▄▀█ █▄▄▄▄▄█
+#				▄▄ ▄  ▄▄▀██▀▀ ▄▄▄ ▄▄
+#				 ▀█▄█▄▄▄█▀▀ ▄▄▀█ █▄▀█
+#				 █ █▀▄▄▄▀██▀▄ █▄▄█ ▀█
+#				▄▄▄▄▄▄▄ █▄█▀ ▄ ██ ▄█
+#				█ ▄▄▄ █  █▀█▀ ▄▀▀  ▄▀
+#				█ ███ █ ▀▄  ▄▀▀▄▄▀█▀█
+#				█▄▄▄▄▄█ ███▀▄▀ ▀██ ▄ 
+#
+#########################################################################################
+
+#########################################################################################
+#
+#region 1. Script settings and initialization
+#
+#########################################################################################
+
+# Stop on error
+$ErrorActionPreference = "Stop"
+
+# Console title
+# Check if RawUI is available before trying to set window properties
+if ($null -ne $host.UI.RawUI) {
+	$host.UI.RawUI.WindowTitle = "PNG to ICO"
+    
+	try {
+		# Attempt to change window size
+		$host.UI.RawUI.WindowSize = New-Object Management.Automation.Host.Size(65, 30)
+	} catch {
+		Write-Debug "Window size change is not supported in this environment."
+	}
+
+}
 
 # Stop on error
 $ErrorActionPreference = "Stop"
@@ -38,7 +63,8 @@ Write-Output  "                          PNG to ICO :"
 Write-Output  " -------------------------------------------------------------"
 Write-Output "`n"
 
-# Global variables
+# Script directory path
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
 # First command line argument
 $argPath = $args[0]
@@ -58,50 +84,45 @@ else {
 	$argPath = Resolve-Path -Path $argPath
 }
 
-# Set to $true to to include sizes in multi-res ICOs that exceeds the original size of the image
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
+
+#########################################################################################
+#
+#region 2. User configuration
+#
+#########################################################################################
+
+# Set to $true to include subicons (image sizes) in multi-res ICOs that exceeds the original size of the image
 $upscale = $args[1]
 if ($null -eq $upscale) {
 	# Set to $false if not specified
 	$upscale = $false
 }
 
-# Script directory path
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-
 # ImageMagick executable
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
-
-# Uncomment to set custom path
+# Uncomment to set custom path:
 # $magick = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
 
-# If magick.exe is not found in specified directory
-if (-not [bool](Test-Path -Path $magick)) {
-	if ([bool](Get-Command magick)) {
-		# Use magick.exe from environment variable if found
-		$magick = "magick"
-	}
-	else {
-		# Write and throw error
-		Write-Error "ImageMagick not found."
-		throw
-	}
-}
-
-# Subdirectory, relative to input directory, to save all icons in (only used when first argument is a directory)
+# Used for converting all images in a directory:
+# Subdirectory, relative to input directory, to save all icons in
 # Default: Save into a subdirectory named "ICO"
 $iconsFinalDir = Join-Path -Path $argPath -ChildPath "ICO"
 # echo "argPath $argPath"
 # echo "iconsFinalDir $iconsFinalDir"
-
-# Uncomment to set custom path
+# Uncomment to set custom path:
 # $iconsFinalDir = "C:\Users\John\My icons"
 
-# Subdirectory, relative to input image's directory, to save all icons in (only used when first argument is a file)
+# Used for single file conversion:
+# Subdirectory, relative to input image's directory, to save the icon in
 # Default: Save icon to the same folder as input image
 $singleIconFinalDirName = ""
-
-# Uncomment to set custom path
-# $singleIconFinalDir = "C:\Users\John\My icons"
+# Uncomment to set custom path:
+# $singleIconFinalDir = "C:\Users\John\My icons" 
 
 # Temporary directory path
 $tempDir = Join-Path -Path $env:TEMP -ChildPath "PNG-to-ICO"
@@ -121,8 +142,19 @@ $finishedSingleIconDir = Join-Path -Path $tempDir -ChildPath "Finished"
 # Default: icon directories go into "Finished"
 $finishedDirParent = Join-Path -Path $tempDir -ChildPath "Finished"
 
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
 
-# Functions
+#########################################################################################
+#
+#region 3. Function definitions
+#
+#########################################################################################
+
+# Functions are defined in the the order they are first called.
 
 function ConvertTo-IcoMultiRes {
 	param (
@@ -130,6 +162,7 @@ function ConvertTo-IcoMultiRes {
 		$iconBaseName,
 		$icon
 	)
+
 	$subiconsDir = Join-Path -Path $subiconsDirParent -ChildPath $iconBaseName
 	
 	# Create temporary directory for this icon, for storing subicons
@@ -270,6 +303,7 @@ function Convert-Image {
 		$image,
 		$outputFile
 	)
+
 	# echo "command: '$magick ""$image"" ""$outputFile""'"
 	& $magick "$image" "$outputFile"
 }
@@ -279,6 +313,7 @@ function Convert-ImageResizeNormal {
 		$outputSize,
 		$outputFile
 	)
+
 	# Convert+Resize with Image Magick
 	$resize = "$outputSize" + "x" + "$outputSize"
 	# & $magick "$inputFile" -resize $resize -background none -gravity center -extent $outputSize "$outputFile"
@@ -292,7 +327,15 @@ function Convert-ImageResizeSharper {
 		$inputFile,
 		$outputSize,
 		$outputFile,
-		$inputSize)
+		$inputSize
+		)
+
+	# "Cubic Filters". https://imagemagick.org/Usage/filter/#cubics
+	# "Box". https://imagemagick.org/Usage/filter/#box
+	# "Scale-Rotate-Translate (SRT) Distortion". https://imagemagick.org/Usage/distorts/#srt
+	# "-crop". https://imagemagick.org/script/command-line-options.php#crop
+	# "Transpose and Transverse, Diagonally". https://imagemagick.org/Usage/warping/#transpose
+	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
 	
 	# Parameters for resizing the two algorithms
 	$cubicBValue = 0.0
@@ -341,15 +384,10 @@ function Convert-ImageResizeSharper {
 		Write-Warning "Attempted to resize with scale factor 1.0."
 		Pause
 	}
-
-	# "Cubic Filters". https://imagemagick.org/Usage/filter/#cubics
-	# "Box". https://imagemagick.org/Usage/filter/#box
-	# "Scale-Rotate-Translate (SRT) Distortion". https://imagemagick.org/Usage/distorts/#srt
-	# "-crop". https://imagemagick.org/script/command-line-options.php#crop
-	# "Transpose and Transverse, Diagonally". https://imagemagick.org/Usage/warping/#transpose
-	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
+	
 	# `-resize` keeps aspect ratio by default.
 	$resize = "$outputSize" + "x" + "$outputSize"
+
 	# echo $outputFile
 	if ($useBoxFilter) {
 		# echo box
@@ -371,18 +409,42 @@ function Convert-ImageResizeSharper {
 		"$outputFile"
 	}
 }
-function New-MultiResIcon {
 
+function New-MultiResIcon {
 	param (
 		$inputDir,
 		$tempName,
 		$outputIcon
 	)
+
 	$files = Join-Path -Path $inputDir -ChildPath "\*"
 	& $magick "$files" "$outputIcon"
 }
 
-# Main code
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
+
+#########################################################################################
+#
+#region 4. Convert to ICO
+#
+#########################################################################################
+
+# If magick.exe is not found in specified directory
+if (-not [bool](Test-Path -Path $magick)) {
+	if ([bool](Get-Command magick)) {
+		# Use magick.exe from environment variable if found
+		$magick = "magick"
+	}
+	else {
+		# Write and throw error
+		Write-Error "ImageMagick not found."
+		throw
+	}
+}
 
 # If first argument is a directory
 IF ([bool](Test-Path $argPath -PathType container)) {
@@ -551,5 +613,11 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 }
 
 # IMPROVE Error handling
-# IMPROVE Check if files in temporary directory when starting, prompt user for action if found
+# IMPROVE Check if file(s) exists in temporary directory when starting, prompt user for action if found
 # IMPROVE Get-Data function
+
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
