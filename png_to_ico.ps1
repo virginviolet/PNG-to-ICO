@@ -205,7 +205,7 @@ function ConvertTo-IcoMultiRes {
 	Get-Variable -Name subiconCount -Scope Script 1> $null
 
 	New-MultiResIcon $subiconsDir $iconBaseName $icon
-	Pause
+	# Pause
 	# Take all the subicons created and assemble into a multi-res icon
 	Remove-Item $subiconsDirParent -Recurse
 }
@@ -506,32 +506,18 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 		New-Item -Path $iconsFinalDir -ItemType "directory" 1> $null
 	}
 
-	# Pause
-	# Move-Item -Path $finishedDir -Destination $iconsFinalDir
-	# Move each multi-res icon file from the temporary completed directory, into a subdirectory in the original directory
-	$icons = Get-ChildItem -Path $finishedDir
-	# $directory = Get-Item ($finishedDir).Directory
-	# $directory = Get-Item -Path $finishedDir
-	# echo "directory $directory"
-	# echo "icons directory" + ($icons)
-	foreach ($i in $icons) {
-		$icon = $i.FullName # Full path
-		# echo "i path $iconFinal"
-		# echo "i name $iconFinalName"
-		# echo "iconsFinalDir $iconsFinalDir"
-		# echo "iconDestination $iconDestination"
-		
-		# Check if file already exists
-		$iconFilename = $i.Name # File name
-		$iconDestination = Join-Path -Path $iconsFinalDir -ChildPath $iconFilename
-		if ([bool](Test-Path $iconDestination)) {
-			# Confirm overwrite
-			Move-Item -Path $icon -Destination $iconDestination -Force -Confirm
-		} else {
-			# Move without confirmation
-			Move-Item -Path $icon -Destination $iconDestination
-		}
+	$icons = Join-Path -Path $finishedDir -ChildPath "\*"
+	# Move files that do not already exist at destination first
+	$nonExistingFiles = Get-ChildItem -Path $icons | Where-Object {
+		[bool](-not (Test-Path (Join-Path -Path $iconsFinalDir -ChildPath $_.Name)))
 	}
+	if ($null -ne $nonExistingFiles) {
+		Move-Item -Path $nonExistingFiles -Destination $iconsFinalDir
+	}
+	# Then move the conflicting files and prompt user for action
+	Write-Host "`n"
+	Write-Warning "File already exists in the destination directory."
+	Move-Item -Path $icons -Destination $iconsFinalDir -Force -Confirm
 
 	# Pause
 	# Remove the now empty temporary completed directory
