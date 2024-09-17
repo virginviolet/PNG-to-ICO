@@ -94,6 +94,11 @@ if ($null -eq $argPath) {
 
 # TODO Move subicon sizes and algorithms here
 
+$sizesPngNormal = @(256)
+$sizesPngSharper = @()
+$sizesIcoNormal = @(128)
+$sizesIcoSharper = @(96, 64, 48, 32, 24, 16)
+
 # Set to $true to always include selected subicon sizes (resolutions) in multi-res ICOs even when they exceed the original size of the image
 $upscale = $args[1]
 
@@ -194,10 +199,6 @@ function ConvertTo-IcoMultiRes {
 	}
 
 	# Set which subicons to create, based on image size and resize algorithm
-	$sizesPngNormal = @(256)
-	$sizesPngSharper = @()
-	$sizesIcoNormal = @(128)
-	$sizesIcoSharper = @(96, 64, 48, 32, 24, 16)
 
 	# Get width and height of input image
 	$width = [int](& $magick identify -ping -format '%w' $image)
@@ -227,7 +228,7 @@ function ConvertTo-IcoMultiRes {
 	Get-Variable -Name subiconCount -Scope Script 1> $null
 	ConvertFrom-SizeList $sizesIcoSharper $imageSize "sharper" $image $subiconsDir $subiconCount $iconBaseName "ico"
 	Get-Variable -Name subiconCount -Scope Script 1> $null
-
+	
 	New-MultiResIcon $subiconsDir $iconBaseName $icon
 	# Pause
 	# Take all the subicons created and assemble into a multi-res icon
@@ -245,7 +246,7 @@ function ConvertFrom-SizeList {
 		$outputBaseName,
 		$outputExt
 	)
-	
+
 	# Get input image extension
 	$inputExt = (Get-ChildItem -Path $inputImage).Extension
 
