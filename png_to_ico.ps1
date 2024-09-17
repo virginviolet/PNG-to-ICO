@@ -92,8 +92,8 @@ if ($null -eq $argPath) {
 #
 #########################################################################################
 
-# TODO Move subicon sizes and algorithms here
 
+# Set which subicons to create, based on image size and resize algorithm
 $sizesPngNormal = @(256)
 $sizesPngSharper = @()
 $sizesIcoNormal = @(128)
@@ -198,8 +198,6 @@ function ConvertTo-IcoMultiRes {
 		New-Item -Path $subiconsDir -ItemType "directory" 1> $null
 	}
 
-	# Set which subicons to create, based on image size and resize algorithm
-
 	# Get width and height of input image
 	$width = [int](& $magick identify -ping -format '%w' $image)
 	$height = [int](& $magick identify -ping -format '%h' $image)
@@ -215,19 +213,17 @@ function ConvertTo-IcoMultiRes {
 	# echo $iconBaseName
 
 	# Make subicons
-	# We need the function to update the value of $subiconCount. The canonical way to do this would be `$subiconCount = ConvertFrom-SizeList <...>`, but that would make it look like the purpose of that function is only to update the subiconCount value. Instead, we set and get the variable in the Script scope.
+	# We need the function to update the value of $subiconCount. The canonical way to do this is probably:
+	# `$subiconCount = ConvertFrom-SizeList <...>`
+	# But that would make it look like the purpose of that function is only to update the subiconCount value. So instead, we set variable in the Script scope here, and then update it in the other function.
 	# $subiconCount is suffixed to the subicon file names.
-	Set-Variable -Name subiconCount -Value 0 -Scope Script # Initialize variable
-	ConvertFrom-SizeList $sizesPngNormal $imageSize "normal" $image $subiconsDir $subiconCount $iconBaseName "png"
+	$script:subiconCount = 0 # Initialize variable
+	ConvertFrom-SizeList $sizesPngNormal $imageSize "normal" $image $subiconsDir $iconBaseName "png"
 	# Pause
-	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesPngSharper $imageSize "sharper" $image $subiconsDir $subiconCount $iconBaseName "png"
+	ConvertFrom-SizeList $sizesPngSharper $imageSize "sharper" $image $subiconsDir $iconBaseName "png"
 	# Pause
-	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesIcoNormal $imageSize "normal" $image $subiconsDir $subiconCount $iconBaseName "ico"
-	Get-Variable -Name subiconCount -Scope Script 1> $null
-	ConvertFrom-SizeList $sizesIcoSharper $imageSize "sharper" $image $subiconsDir $subiconCount $iconBaseName "ico"
-	Get-Variable -Name subiconCount -Scope Script 1> $null
+	ConvertFrom-SizeList $sizesIcoNormal $imageSize "normal" $image $subiconsDir $iconBaseName "ico"
+	ConvertFrom-SizeList $sizesIcoSharper $imageSize "sharper" $image $subiconsDir $iconBaseName "ico"
 	
 	New-MultiResIcon $subiconsDir $iconBaseName $icon
 	# Pause
@@ -242,7 +238,6 @@ function ConvertFrom-SizeList {
 		$algorithm,
 		$inputImage,
 		$outputDir,
-		$subiconCount,
 		$outputBaseName,
 		$outputExt
 	)
@@ -250,16 +245,13 @@ function ConvertFrom-SizeList {
 	# Get input image extension
 	$inputExt = (Get-ChildItem -Path $inputImage).Extension
 
-	# There is no `++` syntax for Set-Variable, so let's use a local variable, and at the end use Set-Variable
-	$subiconCountLocal = $subiconCount
-
 	# echo "$imageSize $sizesPngNormal[-1] $sizesPngSharper[-1] $sizesIcoNormal[-1]) $sizesIcoSharper[-1]"
 	# echo $imageSize
 	# echo $sizesIcoSharper[-1]
 	foreach ($size in $sizeList) {
-		# echo "l $subiconCountLocal"
+		# echo "SIC $subiconCount"
 		# Only resize if original image is greater than $size
-		$subiconName = "$outputBaseName-$subiconCountLocal.$outputExt"
+		$subiconName = "$outputBaseName-$subiconCount.$outputExt"
 		# echo "'$outputBaseName'"
 		# echo "'$subiconName'"
 		# echo $size
@@ -275,26 +267,26 @@ function ConvertFrom-SizeList {
 			} else {
 				Write-Error "Incorrect algorithm '$algorithm'"
 			}
-			$subiconCountLocal++
+			$script:subiconCount++
 			# Get-Variable -Name subiconCount -Scope Script
-			# echo "l $subiconCountLocal"
+			# echo "SIC $subiconCount"
 		}
 		# If original image is equal to $size, and the format is different, then convert without resize
 		elseif (($imageSize -eq $size) -and ($outputExt -ne $inputExt)) {
 			# echo two
 			Convert-Image $inputImage $subicon
-			$subiconCountLocal++
+			$script:subiconCount++
 		}
 		# If original image is equal to $size, and the format is the same, then simply copy the image to the subicons directory
 		elseif (($imageSize -eq $size) -and ($outputExt -eq $inputExt)) {
 			# echo three
 			Copy-Item -Path "$inputImage" -Destination "$subicon"
-			$subiconCountLocal++
+			$script:subiconCount++
 		}
 		# If upscaling is enabled, and the original image is smaller than $size
 		elseif (($upscale -eq $true) -and ($imageSize -lt $size)) {
 			Convert-ImageResizeNormal $inputImage $size $subicon
-			$subiconCountLocal++
+			$script:subiconCount++
 		}
 		# If original image is smaller than anything in the lists (and upscaling is disabled)
 		# (`[-1]` gets the last item i the list. The `$null -eq` check is necessary in case the list is empty.)
@@ -306,14 +298,13 @@ function ConvertFrom-SizeList {
 			# IMPROVE Make this not run more times than necessary. It currently runs onece for each time time this function is called.
 			# This piece of code could be moved to ConvertTo-IcoMultiRes, which would solve the problem, but it feels more organized to keep it here. The performance loss is negligible, unless, perhaps, someone tries to batch convert a huge amount of tiny files, but that's not a very plausible scenario, I think.
 			Convert-Image $inputImage $subicon
-			$subiconCountLocal++
+			$script:subiconCount++
 			# echo returning
 			return
 		}
 
 		# Pause
 	}
-	Set-Variable -Name subiconCount -Value $subiconCountLocal -Scope Script
 	# Get-Variable -Name subiconCount -Scope Script
 	# echo "gccc $subiconCount"
 
