@@ -40,9 +40,6 @@ if ($null -ne $host.UI.RawUI) {
 
 }
 
-# Stop on error
-$ErrorActionPreference = "Stop"
-
 # Console title
 # Check if RawUI is available before trying to set window properties
 if ($null -ne $host.UI.RawUI) {
@@ -95,12 +92,10 @@ if ($null -eq $argPath) {
 #
 #########################################################################################
 
-# Set to $true to include subicons (image sizes) in multi-res ICOs that exceeds the original size of the image
+# TODO Move subicon sizes and algorithms here
+
+# Set to $true to always include selected subicon sizes (resolutions) in multi-res ICOs even when they exceed the original size of the image
 $upscale = $args[1]
-if ($null -eq $upscale) {
-	# Set to $false if not specified
-	$upscale = $false
-}
 
 # ImageMagick executable
 $magick = Join-Path $scriptDir -ChildPath "ImageMagick\magick.exe"
@@ -149,7 +144,36 @@ $finishedDirParent = Join-Path -Path $tempDir -ChildPath "Finished"
 
 #########################################################################################
 #
-#region 3. Function definitions
+#region 3. Finalization
+#
+#########################################################################################
+
+if ($null -eq $upscale) {
+	# Set to $false if not specified
+	$upscale = $false
+}
+
+# If magick.exe is not found in specified directory
+if (-not [bool](Test-Path -Path $magick)) {
+	if ([bool](Get-Command magick)) {
+		# Use magick.exe from environment variable if found
+		$magick = "magick"
+	} else {
+		# Write and throw error
+		Write-Error "ImageMagick not found."
+		throw
+	}
+}
+
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
+
+#########################################################################################
+#
+#region 4. Function definitions
 #
 #########################################################################################
 
@@ -421,21 +445,9 @@ function New-MultiResIcon {
 
 #########################################################################################
 #
-#region 4. Convert to ICO
+#region 5. Convert to ICO
 #
 #########################################################################################
-
-# If magick.exe is not found in specified directory
-if (-not [bool](Test-Path -Path $magick)) {
-	if ([bool](Get-Command magick)) {
-		# Use magick.exe from environment variable if found
-		$magick = "magick"
-	} else {
-		# Write and throw error
-		Write-Error "ImageMagick not found."
-		throw
-	}
-}
 
 # If first argument is a directory
 IF ([bool](Test-Path $argPath -PathType container)) {
@@ -505,7 +517,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	if (-not [bool](Test-Path -Path $iconsFinalDir)) {
 		New-Item -Path $iconsFinalDir -ItemType "directory" 1> $null
 	}
-
+	
 	$icons = Join-Path -Path $finishedDir -ChildPath "\*"
 	# Move files that do not already exist at destination first
 	$nonExistingFiles = Get-ChildItem -Path $icons | Where-Object {
@@ -589,7 +601,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 
 # IMPROVE Error handling
 # IMPROVE Check if file(s) exists in temporary directory when starting, prompt user for action if found
-# IMPROVE Get-Data function
+# IMPROVE Get-Help data
 
 #########################################################################################
 #
