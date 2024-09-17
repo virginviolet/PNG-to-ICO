@@ -438,9 +438,9 @@ function New-MultiResIcon {
 }
 
 function Move-Files {
-    [CmdletBinding(SupportsShouldProcess)]
-    param($files,
-	$destination
+	[CmdletBinding(SupportsShouldProcess)]
+	param($files,
+		$destination
 	)
 
 	# Documentation on ShouldProcess:
@@ -484,9 +484,8 @@ function Move-Files {
 			$continue = $PSCmdlet.ShouldContinue(
 				"""$fileDestination""",
 				'Replace the file in the destination?'
-				)
-		}
-		elseif ($destinationExists -and -not $yesToAll -and -not $noToAll) {
+			)
+		} elseif ($destinationExists -and -not $yesToAll -and -not $noToAll) {
 			# Prompt to replace file
 			# (Options: "Yes", "Yes to All", "No", "No to All", "Suspend", and "Help")
 			Write-Output ""
@@ -494,9 +493,9 @@ function Move-Files {
 			$continue = $PSCmdlet.ShouldContinue(
 				"""$fileDestination""",
 				'Replace the file in the destination?',
-					[ref]$yesToAll,
-					[ref]$noToAll
-				)
+				[ref]$yesToAll,
+				[ref]$noToAll
+			)
 		}
 		# If user has selected "Yes to All"
 		elseif ($destinationExists -and $yesToAll) {
@@ -510,7 +509,7 @@ function Move-Files {
 		# echo "continue: $continue"
 		# Continue if file does not exist at destination,
 		# or if user selected "Yes" or "Yes to All"
-		if ($continue){
+		if ($continue) {
 			# Move item (replace if exists)
 			# echo "fileDestination: $fileDestination"
 			# echo "file: $file"
@@ -518,7 +517,7 @@ function Move-Files {
 			Move-Item -Path "$filePath" -Destination "$fileDestination" -Force
 			$fileCount--
 		}
-    }
+	}
 }
 
 #########################################################################################
