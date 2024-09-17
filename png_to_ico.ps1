@@ -437,6 +437,90 @@ function New-MultiResIcon {
 	& $magick "$files" "$outputIcon"
 }
 
+function Move-Files {
+    [CmdletBinding(SupportsShouldProcess)]
+    param($files,
+	$destination
+	)
+
+	# Documentation on ShouldProcess:
+	# sdwheeler. "Everything You Wanted to Know about ShouldProcess - PowerShell", 17 november 2022. https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-shouldprocess?view=powershell-7.4.
+
+	# Move each file to destination, and prompt on conflict
+
+	# Initialize variables
+	$yesToAll = $false
+	$noToAll = $false
+	$continue = $true
+
+	# echo "files: $files"
+
+	# Get the number of files
+	$fileCount = $files.Count
+
+	foreach ($f in $files) {
+		# Check if file/directory already exists at destination
+		$fileFilename = $f.Name
+		# echo "fp: " $f.FullName
+		# echo "fn: $fileFilename"
+		# echo "destination: $destination"
+		$filePath = $f.FullName
+		$fileDestination = Join-Path -Path $destination -ChildPath $fileFilename
+		# Check if destination exists and path type (directory/file) matches
+		# Path type matches if both $filePath and $fileDestination are directories, or if both are files
+		# If both or either does not exist, it will return $false, so we do not need to check separetly a if a file/directory exists at the destination path
+		$destinationExists = (
+			([bool](Test-Path -Path $filePath -PathType Container) -and [bool](
+				Test-Path -Path $fileDestination -PathType Container)) -or 
+			([bool](Test-Path -Path $filePath -PathType Leaf) -and [bool](
+				Test-Path $fileDestination -PathType Leaf)))
+		# echo "fc $fileCount"
+		# If only one file
+		if ($destinationExists -and $fileCount -eq 1 -and -not $yesToAll -and -not $noToAll) {
+			# IMPROVE Skip if file/directory is identical
+			# Do not give the options "Yes to All" and "No to All"
+			# (only give options "Yes", "No", "Suspend", and "Help")
+			# echo here
+			$continue = $PSCmdlet.ShouldContinue(
+				"""$fileDestination""",
+				'Replace the file in the destination?'
+				)
+		}
+		elseif ($destinationExists -and -not $yesToAll -and -not $noToAll) {
+			# Prompt to replace file
+			# (Options: "Yes", "Yes to All", "No", "No to All", "Suspend", and "Help")
+			Write-Output ""
+			Write-Warning "The destination already has a file named ""$fileFilename""."
+			$continue = $PSCmdlet.ShouldContinue(
+				"""$fileDestination""",
+				'Replace the file in the destination?',
+					[ref]$yesToAll,
+					[ref]$noToAll
+				)
+		}
+		# If user has selected "Yes to All"
+		elseif ($destinationExists -and $yesToAll) {
+			Write-Warning "Replacing ""$fileFilename""."
+		}
+		# If user has selected "No to All"
+		elseif ($destinationExists -and $noToAll) {
+			Write-Warning "Skipping ""$fileFilename""."
+		}
+
+		# echo "continue: $continue"
+		# Continue if file does not exist at destination,
+		# or if user selected "Yes" or "Yes to All"
+		if ($continue){
+			# Move item (replace if exists)
+			# echo "fileDestination: $fileDestination"
+			# echo "file: $file"
+			# echo "will move"
+			Move-Item -Path "$filePath" -Destination "$fileDestination" -Force
+			$fileCount--
+		}
+    }
+}
+
 #########################################################################################
 #
 #endregion
@@ -473,6 +557,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# Iterate through the images
 	# Write-Host "file count: $($images.Count)"
 	foreach ($i in $images) {
+		# FIXME If there two files with different extensions but the same file name, the alphabetically latter file will get used without prompt or warning
 		# echo "images $images"
 
 		# Print image file name (with extension)
@@ -517,27 +602,22 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	if (-not [bool](Test-Path -Path $iconsFinalDir)) {
 		New-Item -Path $iconsFinalDir -ItemType "directory" 1> $null
 	}
-	
-	$icons = Join-Path -Path $finishedDir -ChildPath "\*"
-	# Move files that do not already exist at destination first
-	$nonExistingFiles = Get-ChildItem -Path $icons | Where-Object {
-		[bool](-not (Test-Path (Join-Path -Path $iconsFinalDir -ChildPath $_.Name)))
-	}
-	if ($null -ne $nonExistingFiles) {
-		Move-Item -Path $nonExistingFiles -Destination $iconsFinalDir
-	}
-	# Then move the conflicting files and prompt user for action
-	Write-Host "`n"
-	Write-Warning "File already exists in the destination directory."
-	Move-Item -Path $icons -Destination $iconsFinalDir -Force -Confirm
+	# Pause
+	# Move each multi-res icon file, from the temporary completed directory, into $iconsFinalDir
+	$icons = Get-ChildItem -Path $finishedDir
+	Move-Files $icons $iconsFinalDir
 
 	# Pause
-	# Remove the now empty temporary completed directory
+	# Remove the (now normally empty) temporary completed directory
 	# echo "will remove"
-	Remove-Item $finishedDir
+	# IMPROVE Prompt if user wants to permanently remove files remaining in $finishedDir (if they selected to not overwrite files for example, there might be files remaining in $finishedDir) EDIT: Or not.
+	Remove-Item $finishedDir -Recurse
+	# Remove-Item $finishedDir -Recurse -Force
+	# TODO Remove each directory individually?
 
 	# Pause
 	Remove-Item $tempDir -Recurse
+
 	# If first argument is a file
 } ELSE {
 	Write-Verbose "File : $argPath"
@@ -554,19 +634,23 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$imageBaseName = (Get-Item -Path $argPath).BaseName # Name without extension
 	$iconTempBaseName = $imageBaseName + "_" + (New-Guid).Guid
 	$iconTemp = Join-Path -Path $dir -ChildPath "$iconTempBaseName.ico"
-	ConvertTo-IcoMultiRes $image $iconTempBaseName $iconTemp
+	$iconBaseName = $imageBaseName
+	$icon = Join-Path -Path $dir -ChildPath "$iconBaseName.ico"
+	ConvertTo-IcoMultiRes $image $iconTempBaseName $icon
 	# echo $iconTemp
 
 	# Move icon to a temporary directory for finished icon.
 	# (This could technically be skipped, but it makes it arguably easier to debug; adds more intuitive file structure)
 	$finishedDir = $finishedSingleIconDir
-	$finishedIcon = Join-Path -Path $finishedDir -ChildPath "$iconTempBaseName.ico"
+	$finishedIcon = Join-Path -Path $finishedDir -ChildPath "$iconBaseName.ico"
 	# echo "fd $finishedDir"
 	# echo "fi $finishedIcon"
 	if (-not [bool](Test-Path -Path $finishedDir)) {
 		New-Item $finishedDir -ItemType "directory" 1> $null
 	}
-	Move-Item -Path $iconTemp -Destination $finishedIcon
+	# Pause
+	# Move and replace without prompting if existing file found (it would just be confusing for the user if they are got to choose whether to replace a file in a temporary directory that they did not know about.)
+	Move-Item -Path $icon -Destination $finishedIcon -Force
 
 	# Remove the now empty directory where unfinished data was stored
 	Remove-Item $unfinishedDirParent
@@ -580,27 +664,25 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	}
 
 	# Check if icon already exists
-	$iconDestination = Join-Path -Path $singleIconFinalDir -ChildPath "$imageBaseName.ico"
-	# echo "ic d $iconDestination"
-	# ("leaf" means it's a file and not a directory)
-	if ([bool](Test-Path -Path $iconDestination -PathType leaf)) {
-		Move-Item -Path $finishedIcon -Destination $iconDestination -Force -Confirm
-	} else {
-		Move-Item -Path $finishedIcon -Destination $iconDestination
-	}
+	
+	# TODO Better differentiate varibles that are paths vs objects
+	$finishedIconItem = Get-Item -Path $finishedIcon
+	Move-Files $finishedIconItem $singleIconFinalDir
 
-	# Remove the now empty temporary completed directory
+	# Remove the (now normally empty) temporary completed directory
 	# echo "will remove"
-	Remove-Item $finishedDir
+	Remove-Item $finishedDir -Recurse
 
-	# Remove the now temporary directory
+	# Remove the now empty temporary directory
 	Remove-Item $tempDir -Recurse
 
 	# Remove-Item $tempDir -Recurse
 }
 
+# TODO Remove debugging
+# TODO Finish code comment documentation
 # IMPROVE Error handling
-# IMPROVE Check if file(s) exists in temporary directory when starting, prompt user for action if found
+# IMPROVE Would this be an improvement?: Check if file(s) exists in temporary directory when starting, prompt user for action if found
 # IMPROVE Get-Help data
 
 #########################################################################################
