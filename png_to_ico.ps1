@@ -575,7 +575,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# IMPROVE Add more formats https://imagemagick.org/script/formats.php
 	# $images = Get-ChildItem -Path $dirContentsPath
 	$images = Get-ChildItem -Path $dirContentsPath `
-		-Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg
+		-Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg, *.bmp, *.pcx, *.nef, *.ico
 	# Iterate through the images
 	# Write-Host "file count: $($images.Count)"
 	foreach ($image in $images) {
