@@ -23,6 +23,22 @@
 #
 #########################################################################################
 
+#########################################################################################
+#
+#region 2. Enum definitions
+#
+#########################################################################################
+
+enum Algorithm {
+	Normal
+	Sharper
+}
+
+#########################################################################################
+#
+#endregion
+#
+#########################################################################################
 # Stop on error
 $ErrorActionPreference = "Stop"
 
@@ -88,7 +104,7 @@ if ($null -eq $argPath) {
 
 #########################################################################################
 #
-#region 2. User configuration
+#region 3. User configuration
 #
 #########################################################################################
 
@@ -149,7 +165,7 @@ $finishedDirParentPath = Join-Path -Path $tempDirPath -ChildPath "Finished"
 
 #########################################################################################
 #
-#region 3. Finalization
+#region 4. Finalization
 #
 #########################################################################################
 
@@ -178,7 +194,7 @@ if (-not [bool](Test-Path -Path $magick)) {
 
 #########################################################################################
 #
-#region 4. Function definitions
+#region 5. Function definitions
 #
 #########################################################################################
 
@@ -188,9 +204,14 @@ function ConvertTo-IcoMultiRes {
 	param (
 		# Add aliases that mimics offcical cmdlet parameters,
 		# for no reason
-		[Alias("Path")][string]$InputPath, # takes string or FileInfo object
+		[Parameter(Mandatory = $true)]
+		[Alias("Path")][string]$InputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[string]$BaseName,
-		[Alias("Destination")][string]$OutputPath # takes string or FileInfo object
+		
+		[Parameter(Mandatory = $true)]
+		[Alias("Destination")][string]$OutputPath
 	)
 
 	$subiconsDirPath = Join-Path -Path $subiconsDirParentPath -ChildPath $BaseName
@@ -223,7 +244,7 @@ function ConvertTo-IcoMultiRes {
 	# echo $subiconsDirPath
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesPngNormal `
 		-InputSize $imageSize `
-		-Algorithm "Normal" `
+		-Algorithm Normal `
 		-InputPath $InputPath `
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
@@ -231,7 +252,7 @@ function ConvertTo-IcoMultiRes {
 	# Pause
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesPngSharper `
 		-InputSize $imageSize `
-		-Algorithm "Sharper" `
+		-Algorithm Sharper `
 		-InputPath $InputPath `
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
@@ -239,14 +260,14 @@ function ConvertTo-IcoMultiRes {
 	# Pause
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesIcoNormal `
 		-InputSize $imageSize `
-		-Algorithm "Normal" `
+		-Algorithm Normal `
 		-InputPath $InputPath `
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
 		-OutputExt ".ico"
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesIcoSharper `
 		-InputSize $imageSize `
-		-Algorithm "Sharper" `
+		-Algorithm Sharper `
 		-InputPath $InputPath `
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
@@ -261,15 +282,25 @@ function ConvertTo-IcoMultiRes {
 function ConvertFrom-SubiconsArray {
 	param (
 		[Alias("InputObject")][array]$SubiconsArray,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Size")][int]$InputSize,
-		[string]$Algorithm,
+		
+		[Parameter(Mandatory = $true)]
+		[Algorithm]$Algorithm,
+
+		[Parameter(Mandatory = $true)]
 		[Alias("Path")][string]$InputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Destination")][string]$OutputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[string]$BaseName,
+
+		[Parameter(Mandatory = $true)]
 		[Alias("Extension")][string]$OutputExt
 	)
-
-	# TODO Algorithm string to Enum
 
 	# Get input image extension
 	$inputExt = (Get-Item -Path $InputPath).Extension
@@ -287,14 +318,17 @@ function ConvertFrom-SubiconsArray {
 		$subiconPath = Join-Path -Path $OutputPath -ChildPath $subiconName
 		if ($InputSize -gt $subiconSize) {
 			# echo one
-			if ($Algorithm -eq "Sharper") {
+			if ($Algorithm -eq [Algorithm]::Sharper) {
 				# echo "$subiconSize sharp"
-				Convert-ImageResizeSharper -InputPath $InputPath -InputSize $InputSize -OutputSize $subiconSize -OutputPath $subiconPath
-			} elseif ($Algorithm -eq "Normal") {
+				Convert-ImageResizeSharper -InputPath $InputPath `
+					-InputSize $InputSize `
+					-OutputSize $subiconSize `
+					-OutputPath $subiconPath
+			} elseif ($Algorithm -eq [Algorithm]::Normal) {
 				# echo "$subiconSize normal"
-				Convert-ImageResizeNormal -InputPath $InputPath -OutputSize $subiconSize -OutputPath $subiconPath
-			} else {
-				Write-Error "Incorrect algorithm '$Algorithm'"
+				Convert-ImageResizeNormal -InputPath $InputPath `
+					-OutputSize $subiconSize `
+					-OutputPath $subiconPath
 			}
 			$script:subiconCount++
 			# Get-Variable -Name subiconCount -Scope Script
@@ -303,18 +337,22 @@ function ConvertFrom-SubiconsArray {
 		# If original image is equal to $subiconSize, and the format is different, then convert without resize
 		elseif (($InputSize -eq $subiconSize) -and ($OutputExt -ne $inputExt)) {
 			# echo two
-			Convert-Image -InputPath $InputPath -OutputPath $subiconPath
+			Convert-Image -InputPath $InputPath `
+				-OutputPath $subiconPath
 			$script:subiconCount++
 		}
 		# If original image is equal to $subiconSize, and the format is the same, then simply copy the image to the subicons directory
 		elseif (($InputSize -eq $subiconSize) -and ($OutputExt -eq $inputExt)) {
 			# echo three
-			Copy-Item -Path "$InputPath" -Destination "$subiconPath"
+			Copy-Item -Path "$InputPath" `
+				-Destination "$subiconPath"
 			$script:subiconCount++
 		}
 		# If upscaling is enabled, and the original image is smaller than $subiconSize
 		elseif (($upscale -eq $true) -and ($InputSize -lt $subiconSize)) {
-			Convert-ImageResizeNormal -InputPath $InputPath -OutputSize $subiconSize -OutputPath $subiconPath
+			Convert-ImageResizeNormal -InputPath $InputPath `
+				-OutputSize $subiconSize `
+				-OutputPath $subiconPath
 			$script:subiconCount++
 		}
 		# If original image is smaller than anything in the lists (and upscaling is disabled)
@@ -326,7 +364,8 @@ function ConvertFrom-SubiconsArray {
 			($InputSize -lt $sizesIcoSharper[-1] -or $null -eq $sizesIcoSharper[-1])) {
 			# IMPROVE Make this not run more times than necessary. It currently runs onece for each time time this function is called.
 			# This piece of code could be moved to ConvertTo-IcoMultiRes, which would solve the problem, but it feels more organized to keep it here. The performance loss is negligible, unless, perhaps, someone tries to batch convert a huge amount of tiny files, but that's not a very plausible scenario, I think.
-			Convert-Image $InputPath $subiconPath
+			Convert-Image -InputPath $InputPath `
+				-OutputPath $subiconPath
 			$script:subiconCount++
 			# echo returning
 			return
@@ -341,7 +380,10 @@ function ConvertFrom-SubiconsArray {
 
 function Convert-Image {
 	param (
+		[Parameter(Mandatory = $true)]
 		[Alias("Path")]$InputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Destination")]$OutputPath
 	)
 
@@ -351,13 +393,20 @@ function Convert-Image {
 
 function Convert-ImageResizeNormal {
 	param (
+		[Parameter(Mandatory = $true)]
 		[Alias("Path")][string]$InputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Size")][string]$OutputSize,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Destination")][string]$OutputPath
 	)
 
 	# Convert+Resize with Image Magick
 	$resize = "$OutputSize" + "x" + "$OutputSize"
+	
+	# echo "Converting Normal"
 	# & $magick "$InputPath" -resize $resize -background none -gravity center -extent $OutputSize "$OutputPath"
 	& $magick "$InputPath" `
 		-resize $resize `
@@ -366,9 +415,16 @@ function Convert-ImageResizeNormal {
 
 function Convert-ImageResizeSharper {
 	param (
+		[Parameter(Mandatory = $true)]
 		[Alias("Path")][string]$InputPath,
+		
+		[Parameter(Mandatory = $true)]
 		[int]$InputSize,
+		
+		[Parameter(Mandatory = $true)]
 		[int]$OutputSize,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Destination")][string]$OutputPath
 	)
 
@@ -378,7 +434,7 @@ function Convert-ImageResizeSharper {
 	# "-crop". https://imagemagick.org/script/command-line-options.php#crop
 	# "Transpose and Transverse, Diagonally". https://imagemagick.org/Usage/warping/#transpose
 	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
-	
+
 	# Parameters for resizing the two algorithms
 	$cubicBValue = 0.0
 	$cubicBlurValue = 1.05
@@ -427,6 +483,7 @@ function Convert-ImageResizeSharper {
 	# `-resize` keeps aspect ratio by default.
 	$resize = "$OutputSize" + "x" + "$OutputSize"
 
+	# echo "Converting Sharper"
 	# echo $OutputPath
 	if ($useBoxFilter) {
 		# echo box
@@ -450,7 +507,10 @@ function Convert-ImageResizeSharper {
 
 function New-MultiResIcon {
 	param (
+		[Parameter(Mandatory = $true)]
 		[Alias("Path")][string]$InputDirectoryPath,
+		
+		[Parameter(Mandatory = $true)]
 		[Alias("Destination")][string]$OutputPath
 	)
 
@@ -550,7 +610,7 @@ function Move-Files {
 
 #########################################################################################
 #
-#region 5. Convert to ICO
+#region 6. Convert to ICO
 #
 #########################################################################################
 
@@ -574,6 +634,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$dirContentsPath = Join-Path $argPath -ChildPath '*'
 	# IMPROVE Add more formats https://imagemagick.org/script/formats.php
 	# $images = Get-ChildItem -Path $dirContentsPath
+	# IMPROVE Do not convert manually created multi-res icons into sloppy automated multi-res icons 
 	$images = Get-ChildItem -Path $dirContentsPath `
 		-Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg, *.bmp, *.pcx, *.nef, *.ico
 	# Iterate through the images
@@ -597,7 +658,9 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 		# $iconTemp = Join-Path -Path $dirPath -ChildPath "$iconTempBaseName.ico"
 		$iconPath = Join-Path -Path $dirPath -ChildPath "$iconBaseName.ico"
 		# echo "iconPath $iconPath"
-		ConvertTo-IcoMultiRes -InputPath $imagePath -BaseName $iconTempBaseName -OutputPath $iconPath
+		ConvertTo-IcoMultiRes -InputPath $imagePath `
+			-BaseName $iconTempBaseName `
+			-OutputPath $iconPath
 		# pause
 	}
 
@@ -634,8 +697,7 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	# Remove the (now normally empty) temporary completed directory
 	# echo "will remove"
 	Remove-Item $finishedDirPath -Recurse
-	# Remove-Item $finishedDirPath -Recurse -Force
-	# TODO Remove each directory individually?
+	# Remove-Item $finishedDirParentPath -Recurse
 
 	# Pause
 	Remove-Item $tempDirPath -Recurse
@@ -657,7 +719,9 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	$iconTempBaseName = $imageBaseName + "_" + (New-Guid).Guid
 	$iconBaseName = $imageBaseName
 	$iconPath = Join-Path -Path $dirPath -ChildPath "$iconBaseName.ico"
-	ConvertTo-IcoMultiRes -InputPath $imagePath -BaseName $iconTempBaseName -OutputPath $iconPath
+	ConvertTo-IcoMultiRes -InputPath $imagePath `
+		-BaseName $iconTempBaseName `
+		-OutputPath $iconPath
 	# echo $iconPath
 
 	# Move icon to a temporary directory for finished icon.
@@ -674,7 +738,8 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	Move-Item -Path $iconPath -Destination $finishedIconPath -Force
 
 	# Remove the now empty directory where unfinished data was stored
-	Remove-Item $unfinishedDirParentPath
+	Remove-Item $unfinishedDirPath
+	# Remove-Item $unfinishedDirParentPath
 
 	# Move icon to its final destination
 	$imageDirPath = Convert-Path -Path $((Get-Item $argPath).Directory)
@@ -685,18 +750,17 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	}
 
 	# Check if icon already exists
-	
+	 
 	$finishedIcon = Get-Item -Path $finishedIconPath
-	Move-Files $finishedIcon $singleIconFinalDirPath
+	Move-Files -Files $finishedIcon -Destination $singleIconFinalDirPath
 
 	# Remove the (now normally empty) temporary completed directory
 	# echo "will remove"
 	Remove-Item $finishedDirPath -Recurse
+	# Remove-Item $finishedSingleIconDirPath -Recurse
 
 	# Remove the now empty temporary directory
 	Remove-Item $tempDirPath -Recurse
-
-	# Remove-Item $tempDirPath -Recurse
 }
 
 # TODO Remove debugging
