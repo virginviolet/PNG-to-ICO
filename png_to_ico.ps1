@@ -109,30 +109,30 @@ if ($null -eq $argPath) {
 #########################################################################################
 
 
-# Set which subicons to create, based on image size and resize algorithm
+# Set which subicons each multi-res icon should have to have, based on image size and resize algorithm
 $sizesPngNormal = @(256)
 $sizesPngSharper = @()
 $sizesIcoNormal = @(128)
 $sizesIcoSharper = @(96, 64, 48, 32, 24, 16)
 
-# Set to $true to always include selected subicon sizes (resolutions) in multi-res ICOs even when they exceed the original size of the image
+# Set to $true to always include the selected subicon sizes (resolutions) in multi-res ICOs even when they exceed the original size of the image
+# By default, it will be set to $false unless set to true in command line parameter.
 $upscale = $args[1]
 
 # ImageMagick executable
+# If the executable is not found here, the script will attempt to use `magick` from the Path environment variable.
 $magick = Join-Path $scriptDirPath -ChildPath "ImageMagick\magick.exe"
 # Uncomment to set custom path:
 # $magick = "C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
 
-# Used for converting all images in a directory:
+# (Used for converting all images in a directory)
 # Subdirectory, relative to input directory, to save all icons in
 # Default: Save into a subdirectory named "ICO"
 $iconsFinalDirPath = Join-Path -Path $argPath -ChildPath "ICO"
-# echo "argPath $argPath"
-# echo "iconsFinalDir $iconsFinalDirPath"
 # Uncomment to set custom path:
 # $iconsFinalDirPath = "C:\Users\John\My icons"
 
-# Used for single file conversion:
+# (Used for single file conversion)
 # Subdirectory, relative to input image's directory, to save the icon in
 # Default: Save icon to the same folder as input image
 $singleIconFinalDirName = ""
@@ -142,20 +142,56 @@ $singleIconFinalDirName = ""
 # Temporary directory path
 $tempDirPath = Join-Path -Path $env:TEMP -ChildPath "PNG-to-ICO"
 
+# Temporary directory for subicons
 $subiconsDirParentPath = Join-Path -Path $tempDirPath -ChildPath "Unfinished\Subicons"
 
-# Temporary directory for unfinished icon directories, used before all images has been converted (only for when first argument is a directory)
-# (Saving all files to one directory and move all files at the end, allows for the user to overwrite all files with "[A]", in the edge case where there are existing files with the same names and extensions)
+# (Used for converting all images in a directory)
+# Temporary directory for unfinished icon directory, used before all images has been converted
+# (Saving all files to one directory and moveing all files at the end, allows the user to overwrite all files with "[A]", in the edge case where there are existing files with the same names and extensions)
 # Default: Unfinished icon directories go into "Unfinished" parent directory.
 $unfinishedDirParentPath = Join-Path -Path $tempDirPath -ChildPath "Unfinished"
 
-# Temporary directory for finished icons (when first argument is a file)
+# (Used for single file conversion)
+# Temporary directory for finished icon
 # Default: Icons go directly in "Finished" directory.
 $finishedSingleIconDirPath = Join-Path -Path $tempDirPath -ChildPath "Finished"
 
-# Temporary parent directory for a finished icons subdirectory (when first argument is a directory)
+# (Used for converting all images in a directory)
+# Temporary parent directory for a finished icons subdirectory
 # Default: icon directories go into "Finished"
 $finishedDirParentPath = Join-Path -Path $tempDirPath -ChildPath "Finished"
+
+# Directories and example files used by the program with default configuration
+# [ArgPath]
+#   |_ [ICO] (final destination)
+#      |_ a.ico
+#      |_ b.ico
+#   |_ a.png
+#   |_ b.png
+#   |_ single_icon.ico (final destination)
+#   |_ single_icon.png
+#
+# [Temp]
+#   |_ [PNG-to-ICO]
+#      |_ [Unfinished]
+#         |_ [my_images_<directory guid>]
+#            |_ b.ico
+#         |_ [Subicons]
+#            |_ [a_<image guid>]
+#               |_ a_<image guid>-0.png (256x256)
+#               |_ a_<image guid>-1.ico (128x128)
+#               |_ a_<image guid>-2.ico (96x96)
+#               |_ a_<image guid>-3.ico (64x64)
+#               |_ a_<image guid>-4.ico (48x48)
+#               |_ a_<image guid>-5.ico (32x32)
+#               |_ a_<image guid>-6.ico (24x24)
+#               |_ a_<image guid>-7.ico (16x16)
+#         |_ single_icon_<image guid>.ico
+#      |_ [Finished]
+#         |_ single_icon_<image guid>.ico
+#         |_ [my_images_<directory guid>]
+#            |_ a.ico
+#            |_ b.ico
 
 #########################################################################################
 #
@@ -199,7 +235,6 @@ if (-not [bool](Test-Path -Path $magick)) {
 #########################################################################################
 
 # Functions are defined in the the order they are first called.
-
 function ConvertTo-IcoMultiRes {
 	param (
 		# Add aliases that mimics offcical cmdlet parameters,
@@ -214,9 +249,8 @@ function ConvertTo-IcoMultiRes {
 		[Alias("Destination")][string]$OutputPath
 	)
 
+	# Create temporary directory for this icon, for creating subicons in
 	$subiconsDirPath = Join-Path -Path $subiconsDirParentPath -ChildPath $BaseName
-	
-	# Create temporary directory for this icon, for storing subicons
 	if (-Not [bool](Test-Path -Path $subiconsDirPath)) {
 		New-Item -Path $subiconsDirPath -ItemType "directory" 1> $null
 	}
@@ -232,16 +266,14 @@ function ConvertTo-IcoMultiRes {
 		$imageSize = $width
 	}
 
-	# echo $imageSize
-	# echo $BaseName
-
 	# Make subicons
-	# We need the function to update the value of $subiconCount. The canonical way to do this is probably:
-	# `$subiconCount = ConvertFrom-SubiconsArray <...>`
-	# But that would make it look like the purpose of that function is only to update the subiconCount value. So instead, we set variable in the Script scope here, and then update it in the other function.
 	# $subiconCount is suffixed to the subicon file names.
-	$script:subiconCount = 0 # Initialize variable
-	# echo $subiconsDirPath
+	$script:subiconCount = 0
+	# The `ConvertFrom-SubiconsArray` function needs to update the value of $subiconCount. The canonical way to do this is probably:
+	# `$subiconCount = ConvertFrom-SubiconsArray <...>`
+	# But that would make it look like the purpose of the function is only to update the subiconCount value. 
+	# So instead, we set the $subiconCount variable in the Script scope here, and then update it in the other function.
+	# (We could also combine the functions, but then we would need to call `magick identify` more times than necessary.)
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesPngNormal `
 		-InputSize $imageSize `
 		-Algorithm Normal `
@@ -249,7 +281,6 @@ function ConvertTo-IcoMultiRes {
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
 		-OutputExt ".png"
-	# Pause
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesPngSharper `
 		-InputSize $imageSize `
 		-Algorithm Sharper `
@@ -257,7 +288,6 @@ function ConvertTo-IcoMultiRes {
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
 		-OutputExt ".png"
-	# Pause
 	ConvertFrom-SubiconsArray -SubiconsArray $sizesIcoNormal `
 		-InputSize $imageSize `
 		-Algorithm Normal `
@@ -272,10 +302,11 @@ function ConvertTo-IcoMultiRes {
 		-OutputPath $subiconsDirPath `
 		-BaseName $BaseName `
 		-OutputExt ".ico"
-	
-	New-MultiResIcon -InputDirectoryPath $subiconsDirPath -OutputPath $OutputPath
-	# Pause
+
 	# Take all the subicons created and assemble into a multi-res icon
+	New-MultiResIcon -InputDirectoryPath $subiconsDirPath -OutputPath $OutputPath
+	
+	# Remove subicons
 	Remove-Item -Path $subiconsDirParentPath -Recurse
 }
 
@@ -305,58 +336,50 @@ function ConvertFrom-SubiconsArray {
 	# Get input image extension
 	$inputExt = (Get-Item -Path $InputPath).Extension
 
-	# echo "$InputSize $sizesPngNormal[-1] $sizesPngSharper[-1] $sizesIcoNormal[-1]) $sizesIcoSharper[-1]"
-	# echo $InputSize
-	# echo $sizesIcoSharper[-1]
+	# Create the subicons specified in array
 	foreach ($subiconSize in $SubiconsArray) {
-		# echo "SIC $subiconCount"
-		# Only resize if original image is greater than $subiconSize
 		$subiconName = "$BaseName-$subiconCount" + $OutputExt
-		# echo "'$BaseName'"
-		# echo "'$subiconName'"
-		# echo $subiconSize
 		$subiconPath = Join-Path -Path $OutputPath -ChildPath $subiconName
+		# Only resize if original image is greater than $subiconSize
 		if ($InputSize -gt $subiconSize) {
-			# echo one
 			if ($Algorithm -eq [Algorithm]::Sharper) {
-				# echo "$subiconSize sharp"
+				# Create subicon using "Sharper" algorithm
 				Convert-ImageResizeSharper -InputPath $InputPath `
 					-InputSize $InputSize `
 					-OutputSize $subiconSize `
 					-OutputPath $subiconPath
+				# Increase the subicon count (used for naming subicons).
+				$script:subiconCount++
 			} elseif ($Algorithm -eq [Algorithm]::Normal) {
-				# echo "$subiconSize normal"
+				# Create subicon using "Normal" algorithm
 				Convert-ImageResizeNormal -InputPath $InputPath `
 					-OutputSize $subiconSize `
 					-OutputPath $subiconPath
+				$script:subiconCount++
 			}
-			$script:subiconCount++
-			# Get-Variable -Name subiconCount -Scope Script
-			# echo "SIC $subiconCount"
 		}
 		# If original image is equal to $subiconSize, and the format is different, then convert without resize
 		elseif (($InputSize -eq $subiconSize) -and ($OutputExt -ne $inputExt)) {
-			# echo two
 			Convert-Image -InputPath $InputPath `
 				-OutputPath $subiconPath
 			$script:subiconCount++
 		}
 		# If original image is equal to $subiconSize, and the format is the same, then simply copy the image to the subicons directory
 		elseif (($InputSize -eq $subiconSize) -and ($OutputExt -eq $inputExt)) {
-			# echo three
 			Copy-Item -Path "$InputPath" `
 				-Destination "$subiconPath"
 			$script:subiconCount++
 		}
-		# If upscaling is enabled, and the original image is smaller than $subiconSize
+		# If upscaling is enabled, and the original image is smaller than $subiconSize, then resize
 		elseif (($upscale -eq $true) -and ($InputSize -lt $subiconSize)) {
 			Convert-ImageResizeNormal -InputPath $InputPath `
 				-OutputSize $subiconSize `
 				-OutputPath $subiconPath
 			$script:subiconCount++
 		}
-		# If original image is smaller than anything in the lists (and upscaling is disabled)
-		# (`[-1]` gets the last item i the list. The `$null -eq` check is necessary in case the list is empty.)
+		# If original image is smaller than anything in the lists (and upscaling is disabled), then convert without resize
+		# (`[-1]` gets the last item i the list.
+		# The `$null -eq` check is necessary in case the list is empty.)
 		elseif (
 			($InputSize -lt $sizesPngNormal[-1] -or $null -eq $sizesPngNormal[-1]) -and
 			($InputSize -lt $sizesPngSharper[-1] -or $null -eq $sizesPngSharper[-1]) -and
@@ -367,15 +390,9 @@ function ConvertFrom-SubiconsArray {
 			Convert-Image -InputPath $InputPath `
 				-OutputPath $subiconPath
 			$script:subiconCount++
-			# echo returning
 			return
 		}
-
-		# Pause
 	}
-	# Get-Variable -Name subiconCount -Scope Script
-	# echo "gccc $subiconCount"
-
 }
 
 function Convert-Image {
@@ -387,7 +404,7 @@ function Convert-Image {
 		[Alias("Destination")]$OutputPath
 	)
 
-	# echo "command: '$magick ""$InputPath"" ""$OutputPath""'"
+	# Convert with Image Magick
 	& $magick "$InputPath" "$OutputPath"
 }
 
@@ -403,11 +420,8 @@ function Convert-ImageResizeNormal {
 		[Alias("Destination")][string]$OutputPath
 	)
 
-	# Convert+Resize with Image Magick
+	# Convert + resize with Image Magick
 	$resize = "$OutputSize" + "x" + "$OutputSize"
-	
-	# echo "Converting Normal"
-	# & $magick "$InputPath" -resize $resize -background none -gravity center -extent $OutputSize "$OutputPath"
 	& $magick "$InputPath" `
 		-resize $resize `
 		"$OutputPath"
@@ -435,7 +449,7 @@ function Convert-ImageResizeSharper {
 	# "Transpose and Transverse, Diagonally". https://imagemagick.org/Usage/warping/#transpose
 	# "Resizing Images". https://legacy.imagemagick.org/Usage/resize/#resize
 
-	# Parameters for resizing the two algorithms
+	# Parameters for the two resizing algorithms
 	$cubicBValue = 0.0
 	$cubicBlurValue = 1.05
 	$boxBlurValue = 0.707
@@ -449,18 +463,15 @@ function Convert-ImageResizeSharper {
 	$boxFilterCrop2 = ""
 
 	# Determine scale factor
-	# echo "$OutputSize / $inputSize"
 	$scaleFactor = $OutputSize / $inputSize
-	# echo $scaleFactor
+
+	# Set parameters based on scale factor
 	if ($scaleFactor -gt 1) {
 		# Image enlargement
-		# echo enlargement
 		$cubicCValue = 1.0
 	} elseif ($scaleFactor -ge 0.25 -and $scaleFactor -lt 1) {
-		# echo here
 		$cubicCValue = 2.6 - (1.6 * $scaleFactor)
 	} elseif (<# $scaleFactor -le ? -and  #>$scaleFactor -lt 0.25) {
-		# echo box
 		$useBoxFilter = $true
 		$boxFilterSize = 4 * $OutputSize
 		$cubicCValue = 2.2
@@ -480,13 +491,13 @@ function Convert-ImageResizeSharper {
 		Pause
 	}
 	
+	# Set -resize parameter
 	# `-resize` keeps aspect ratio by default.
 	$resize = "$OutputSize" + "x" + "$OutputSize"
 
-	# echo "Converting Sharper"
-	# echo $OutputPath
+	# Convert with Image Magick
 	if ($useBoxFilter) {
-		# echo box
+		# Convert + resize with box filter and cubic filter
 		& $magick "$InputPath" `
 			-filter box -define filter:blur=$boxBlurValue `
 			+distort SRT "$boxFilterSrt1" -crop $boxFilterCrop1 `
@@ -497,7 +508,7 @@ function Convert-ImageResizeSharper {
 			-transpose `
 			"$OutputPath"
 	} else {
-		# echo "command: '$magick ""$InputPath"" -transpose -filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue -resize $resize -transpose ""$OutputPath""'"
+		# Convert + resize with cubic filter
 		& $magick "$InputPath" `
 			-filter cubic -define filter:b=$cubicBValue -define filter:c=$cubicCValue -define filter:blur=$cubicBlurValue `
 			-resize $resize `
@@ -514,6 +525,7 @@ function New-MultiResIcon {
 		[Alias("Destination")][string]$OutputPath
 	)
 
+	# Assemble subicons into a multi-res ICO with Image Magick
 	$filesPath = Join-Path -Path $InputDirectoryPath -ChildPath "\*"
 	& $magick "$filesPath" "$OutputPath"
 }
@@ -522,51 +534,45 @@ function Move-Files {
 	[CmdletBinding(SupportsShouldProcess)]
 	param(
 		$Files, # Takes Object[] that represents files
+		
+		[Parameter(Mandatory = $true)]
 		[string]$Destination
 	)
 
 	# Documentation on ShouldProcess:
 	# sdwheeler. "Everything You Wanted to Know about ShouldProcess - PowerShell", 17 november 2022. https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-shouldprocess?view=powershell-7.4.
 
-	# Move each file to destination, and prompt on conflict
-
 	# Initialize variables
 	$yesToAll = $false
 	$noToAll = $false
 	$continue = $true
 
-	# echo "files: $Files"
-
 	# Get the number of files
 	$fileCount = $Files.Count
 
+	# Move each file to destination, and prompt on conflict
 	foreach ($f in $Files) {
-		# Check if file/directory already exists at destination
 		$fileFilename = $f.Name
-		# echo "fp: " $f.FullName
-		# echo "fn: $fileFilename"
-		# echo "destination: $Destination"
 		$filePath = $f.FullName
 		$fileDestination = Join-Path -Path $Destination -ChildPath $fileFilename
 		# Check if destination exists and path type (directory/file) matches
-		# Path type matches if both $filePath and $fileDestination are directories, or if both are files
-		# If both or either does not exist, it will return $false, so we do not need to check separetly a if a file/directory exists at the destination path
+		# (Path type matches if both $filePath and $fileDestination are directories, or if both are files;
+		# If both or either does not exist, it will return $false, so we do not need to check separetly a if a file/directory exists at the destination path)
 		$destinationExists = (
 			([bool](Test-Path -Path $filePath -PathType Container) -and [bool](
 				Test-Path -Path $fileDestination -PathType Container)) -or 
 			([bool](Test-Path -Path $filePath -PathType Leaf) -and [bool](
 				Test-Path $fileDestination -PathType Leaf)))
-		# echo "fc $fileCount"
-		# If only one file
+		# If conflict and only one file
 		if ($destinationExists -and $fileCount -eq 1 -and -not $yesToAll -and -not $noToAll) {
-			# IMPROVE Skip if file/directory is identical
 			# Do not give the options "Yes to All" and "No to All"
 			# (only give options "Yes", "No", "Suspend", and "Help")
-			# echo here
 			$continue = $PSCmdlet.ShouldContinue(
 				"""$fileDestination""",
 				'Replace the file in the destination?'
 			)
+			# IMPROVE Skip if folder/directory at path and destination are identical (if they have the same hash)
+			# If conflict
 		} elseif ($destinationExists -and -not $yesToAll -and -not $noToAll) {
 			# Prompt to replace file
 			# (Options: "Yes", "Yes to All", "No", "No to All", "Suspend", and "Help")
@@ -579,26 +585,23 @@ function Move-Files {
 				[ref]$noToAll
 			)
 		}
-		# If user has selected "Yes to All"
+		# If conflict and the user has selected "Yes to All"
 		elseif ($destinationExists -and $yesToAll) {
 			Write-Warning "Replacing ""$fileFilename""."
 		}
-		# If user has selected "No to All"
+		# If conflict and the user has selected "No to All"
 		elseif ($destinationExists -and $noToAll) {
 			Write-Warning "Skipping ""$fileFilename""."
 		}
 
-		# echo "continue: $continue"
 		# Continue if file does not exist at destination,
 		# or if user selected "Yes" or "Yes to All"
 		if ($continue) {
 			# Move file/directory (replace if exists)
-			# echo "fileDestination: $fileDestination"
-			# echo "file: $file"
-			# echo "will move"
 			Move-Item -Path "$filePath" -Destination "$fileDestination" -Force
-			$fileCount--
 		}
+		# Reduce file count (number of files in queue)
+		$fileCount--
 	}
 }
 
@@ -615,102 +618,88 @@ function Move-Files {
 #########################################################################################
 
 # If first argument is a directory
-IF ([bool](Test-Path $argPath -PathType container)) {
+if ([bool](Test-Path $argPath -PathType container)) {
 	
 	Write-Verbose "Directory : $argPath"
 
 	# Name of the directory provided by first argument
 	$imagesDirName = (Get-Item -Path $argPath).Name
 	
-	# Name for $unfinishedDirPath and $finishedDir
+	# Name for $unfinishedDirPath and $finishedDir, where files will be temporarily stored
 	# (GUID is just a precaution and perhaps for easier debugging)
 	$tempDirName = "$imagesDirName" + "_" + (New-Guid).Guid
 
-	# Create temporary directory to store icons in before the directory is completed 
+	# Create temporary directory to store icons in before the directory is completed (before all ICOs have been created)
 	$unfinishedDirPath = Join-Path -Path $unfinishedDirParentPath -ChildPath $tempDirName
 	New-Item $unfinishedDirPath -ItemType "directory" 1> $null
 
 	# Get images in argPath
 	$dirContentsPath = Join-Path $argPath -ChildPath '*'
 	# IMPROVE Add more formats https://imagemagick.org/script/formats.php
-	# $images = Get-ChildItem -Path $dirContentsPath
 	# IMPROVE Do not convert manually created multi-res icons into sloppy automated multi-res icons 
 	$images = Get-ChildItem -Path $dirContentsPath `
 		-Include *.png, *.bmp, *.gif, *.jpg, *.jpeg, *.svg, *.bmp, *.pcx, *.nef, *.ico
-	# Iterate through the images
-	# Write-Host "file count: $($images.Count)"
+
+	# Go image by image
 	foreach ($image in $images) {
 		# FIXME If there two files with different extensions but the same file name, the alphabetically latter file will get used without prompt or warning
-		# echo "images $images"
 
 		# Print image file name (with extension)
-		# Pause
 		$imageName = $image.Name
 		Write-Output "- $imageName"
 
 		# Convert image to multi-resolution ICO
-		# echo "image: $imageName"
 		$dirPath = $unfinishedDirPath
 		$imagePath = $image.FullName
 		$imageBaseName = (Get-Item -Path $image).BaseName # Name without extension
 		$iconTempBaseName = $imageBaseName + "_" + (New-Guid).Guid
 		$iconBaseName = $imageBaseName
-		# $iconTemp = Join-Path -Path $dirPath -ChildPath "$iconTempBaseName.ico"
 		$iconPath = Join-Path -Path $dirPath -ChildPath "$iconBaseName.ico"
-		# echo "iconPath $iconPath"
 		ConvertTo-IcoMultiRes -InputPath $imagePath `
 			-BaseName $iconTempBaseName `
 			-OutputPath $iconPath
-		# pause
 	}
 
-	# Pause
-	# Move directory with icons to a directory for finished directories, where icons will be before they are moved to their final destination
-	# (This could technically be skipped, but it makes it arguably easier to debug; adds more intuitive file structure)
+	# Move directory with icons to a directory for finished directory, where icons will be stored before they are moved to their final destination
+	# (This could technically be skipped, but it arguably gives a more intuitive file structure, and makes it arguably easier to debug, as you will be able to see, just based on the file structure, where in the machinery something went wrong.)
 	# First set the path
-	# echo $finishedDirParentPath
-	# echo (-not [bool](Test-Path -Path $finishedDirParentPath))
 	$finishedDirPath = Join-Path -Path $finishedDirParentPath -ChildPath $tempDirName
-	# echo "finishedDir $finishedDirPath"
 	# And create parent directory, or else Move-Item will fail (skip if the directory already exists)
 	if (-not [bool](Test-Path -Path $finishedDirParentPath)) {
 		New-Item $finishedDirParentPath -ItemType "directory" 1> $null
 	}
 	# Then move the directory
-	# echo "unfinishedDir $unfinishedDirPath"
 	Move-Item -Path $unfinishedDirPath -Destination $finishedDirPath
 	
 	# Remove the now empty directory where unfinished data was stored
 	Remove-Item $unfinishedDirParentPath
 
 	# Create final destination directory for the icons (unless the directory already exists)
-	# echo "iconsFinalDir $iconsFinalDirPath"
 	if (-not [bool](Test-Path -Path $iconsFinalDirPath)) {
 		New-Item -Path $iconsFinalDirPath -ItemType "directory" 1> $null
 	}
-	# Pause
 	# Move each multi-res icon file, from the temporary completed directory, into $iconsFinalDirPath
 	$icons = Get-ChildItem -Path $finishedDirPath
 	Move-Files -Files $icons -Destination $iconsFinalDirPath
 
-	# Pause
 	# Remove the (now normally empty) temporary completed directory
-	# echo "will remove"
 	Remove-Item $finishedDirPath -Recurse
+	
+	# Remove the (now normally empty) temporary parent directory for the unfinished data directory
 	# Remove-Item $finishedDirParentPath -Recurse
 
-	# Pause
 	Remove-Item $tempDirPath -Recurse
-
 	# If first argument is a file
-} ELSE {
+} else {
 	Write-Verbose "File : $argPath"
 
 	# Print image file name (with extension)
 	$imageFilename = (Get-Item -Path $argPath).Name
 	Write-Output "- $imageFilename"
 
+	# Create temporary directory for the icon
 	$unfinishedDirPath = $unfinishedDirParentPath
+	New-Item $unfinishedDirPath -ItemType "directory" 1> $null
 
 	# Convert image to multi-resolution ICO
 	$imagePath = $argPath
@@ -722,49 +711,44 @@ IF ([bool](Test-Path $argPath -PathType container)) {
 	ConvertTo-IcoMultiRes -InputPath $imagePath `
 		-BaseName $iconTempBaseName `
 		-OutputPath $iconPath
-	# echo $iconPath
 
 	# Move icon to a temporary directory for finished icon.
-	# (This could technically be skipped, but it makes it arguably easier to debug; adds more intuitive file structure)
+	# (This could technically be skipped, but it arguably gives a more intuitive file structure, and makes it arguably easier to debug, as you will be able to see, just based on the file structure, where in the machinery something went wrong.)
 	$finishedDirPath = $finishedSingleIconDirPath
 	$finishedIconPath = Join-Path -Path $finishedDirPath -ChildPath "$iconBaseName.ico"
-	# echo "fd $finishedDirPath"
-	# echo "fi $finishedIconPath"
 	if (-not [bool](Test-Path -Path $finishedDirPath)) {
 		New-Item $finishedDirPath -ItemType "directory" 1> $null
 	}
-	# Pause
-	# Move and replace without prompting if existing file found (it would just be confusing for the user if they are got to choose whether to replace a file in a temporary directory that they did not know about.)
+	# Move and replace without prompting if existing file found
+	# (it would just be confusing for the user if they are got to choose whether to replace a file in a temporary directory that they did not know about.)
 	Move-Item -Path $iconPath -Destination $finishedIconPath -Force
 
 	# Remove the now empty directory where unfinished data was stored
 	Remove-Item $unfinishedDirPath
+
+	# Remove the parent directory for the unfinished data directory
 	# Remove-Item $unfinishedDirParentPath
 
 	# Move icon to its final destination
 	$imageDirPath = Convert-Path -Path $((Get-Item $argPath).Directory)
-	# echo "im dir $imageDirPath"
 	$singleIconFinalDirPath = Join-Path -Path $imageDirPath -ChildPath "$singleIconFinalDirName" # Set full path
 	if (-not [bool](Test-Path -Path $singleIconFinalDirPath)) {
 		New-Item $singleIconFinalDirPath -ItemType "directory" 1> $null
 	}
-
-	# Check if icon already exists
-	 
+	
 	$finishedIcon = Get-Item -Path $finishedIconPath
 	Move-Files -Files $finishedIcon -Destination $singleIconFinalDirPath
 
 	# Remove the (now normally empty) temporary completed directory
-	# echo "will remove"
 	Remove-Item $finishedDirPath -Recurse
+	
+	# Remove the (now normally empty) temporary parent directory for the completed directory
 	# Remove-Item $finishedSingleIconDirPath -Recurse
 
 	# Remove the now empty temporary directory
 	Remove-Item $tempDirPath -Recurse
 }
 
-# TODO Remove debugging
-# TODO Finish code comment documentation
 # IMPROVE Error handling
 # IMPROVE Would this be an improvement?: Check if file(s) exists in temporary directory when starting, prompt user for action if found
 # IMPROVE Get-Help data
