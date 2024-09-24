@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>png-to-ico</id>
+    <version>1.1</version>
+    <packageSourceUrl>https://github.com/virginviolet/chocolatey-packages/tree/main/manual/png-to-ico</packageSourceUrl>
+    <owners>virginviolet</owners>
+    <title>png-to-ico (Install)</title>
+    <authors>Paul Renard</authors>
+    <projectUrl>https://foxp.github.io/PNG-to-ICO/</projectUrl>
+    <iconUrl>https://raw.githack.com/virginviolet/chocolatey-packages/main/manual/png-to-ico.install/icon/convert-icon-128px.png</iconUrl>
+    <copyright>Public domain</copyright>
+    <licenseUrl>https://github.com/FoxP/PNG-to-ICO?tab=Unlicense-1-ov-file</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/FoxP/PNG-to-ICO</projectSourceUrl>
+    <docsUrl>https://github.com/FoxP/PNG-to-ICO?tab=readme-ov-file</docsUrl>
+    <bugTrackerUrl>https://github.com/FoxP/PNG-to-ICO/issues?q=sort%3Aupdated-desc+is%3Aissue+is%3Aopen</bugTrackerUrl>
+    <tags>png-to-ico ico icon convert conversion</tags>
+    <summary>Convert image to ICO from context menu</summary>
+    <description>A program that converts images from PNG, GIF, BMP, SVG or JPG to multi-resolution ICO files, and is run simply by right-clicking on an image and selecting "PNG to ICO". You can batch convert many images by selecting them before right clicking, or run the program on a folder with images.
+
+The default installation directory is `%AppData%\PNG-to-ICO`. </description>
+    <releaseNotes>- Fix stretching of non-square icons
+- Update ImageMagick to v7.1.1-31 Q16 HDRI x64
+    </releaseNotes>
+    <dependencies>
+      <dependency id="png-to-ico.install" version="[1.1]" />
+    </dependencies>
+  </metadata>
+  <files>
+  </files>
+</package>
