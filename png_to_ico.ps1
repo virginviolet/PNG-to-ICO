@@ -26,23 +26,9 @@
 # Stop on error
 $ErrorActionPreference = "Stop"
 
-# Console title
 # Check if RawUI is available before trying to set window properties
 if ($null -ne $host.UI.RawUI) {
-	$host.UI.RawUI.WindowTitle = "PNG to ICO"
-    
-	try {
-		# Attempt to change window size
-		$host.UI.RawUI.WindowSize = New-Object Management.Automation.Host.Size(65, 30)
-	} catch {
-		Write-Debug "Window size change is not supported in this environment."
-	}
-
-}
-
-# Console title
-# Check if RawUI is available before trying to set window properties
-if ($null -ne $host.UI.RawUI) {
+	# Set console title
 	$host.UI.RawUI.WindowTitle = "PNG to ICO"
     
 	try {
