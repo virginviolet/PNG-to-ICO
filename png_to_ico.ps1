@@ -95,7 +95,6 @@ enum Algorithm {
 #
 #########################################################################################
 
-
 # Set which subicons each multi-res icon should have to have, based on image size and resize algorithm
 $sizesPngNormal = @(256)
 $sizesPngSharper = @()
