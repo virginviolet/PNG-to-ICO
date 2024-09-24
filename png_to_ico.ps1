@@ -70,11 +70,11 @@ if ($null -ne $host.UI.RawUI) {
 
 }
 
-Write-Output "`n"
-Write-Output  " -------------------------------------------------------------"
-Write-Output  "                          PNG to ICO :"
-Write-Output  " -------------------------------------------------------------"
-Write-Output "`n"
+Write-Host "`n"
+Write-Host " -------------------------------------------------------------"
+Write-Host "                          PNG to ICO :"
+Write-Host " -------------------------------------------------------------"
+Write-Host "`n"
 
 # Script directory path
 $scriptDirPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
@@ -85,11 +85,11 @@ $argPath = $args[0]
 # If no parameter is specified
 if ($null -eq $argPath) {
 	# Explain how to use this script
-	Write-Output "Usage: png_to_ico.ps1 <file|directory> [<allow upscale>]"
-	Write-Output "`nExamples`n"
-	Write-Output "png_to_ico.ps1 C:\Users\John\Desktop\my_image.png"
-	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my images"""
-	Write-Output "png_to_ico.ps1 ""C:\Users\John\Desktop\my tiny image.png"" true"
+	Write-Host "Usage: png_to_ico.ps1 <file|directory> [<allow upscale>]"
+	Write-Host "`nExamples`n"
+	Write-Host "png_to_ico.ps1 C:\Users\John\Desktop\my_image.png"
+	Write-Host "png_to_ico.ps1 ""C:\Users\John\Desktop\my images"""
+	Write-Host "png_to_ico.ps1 ""C:\Users\John\Desktop\my tiny image.png"" true"
 	return
 } else {
 	# Get full path
@@ -576,7 +576,7 @@ function Move-Files {
 		} elseif ($destinationExists -and -not $yesToAll -and -not $noToAll) {
 			# Prompt to replace file
 			# (Options: "Yes", "Yes to All", "No", "No to All", "Suspend", and "Help")
-			Write-Output ""
+			Write-Host ""
 			Write-Warning "The destination already has a file named ""$fileFilename""."
 			$continue = $PSCmdlet.ShouldContinue(
 				"""$fileDestination""",
@@ -646,7 +646,7 @@ if ([bool](Test-Path $argPath -PathType container)) {
 
 		# Print image file name (with extension)
 		$imageName = $image.Name
-		Write-Output "- $imageName"
+		Write-Host "- $imageName"
 
 		# Convert image to multi-resolution ICO
 		$dirPath = $unfinishedDirPath
@@ -695,7 +695,7 @@ if ([bool](Test-Path $argPath -PathType container)) {
 
 	# Print image file name (with extension)
 	$imageFilename = (Get-Item -Path $argPath).Name
-	Write-Output "- $imageFilename"
+	Write-Host "- $imageFilename"
 
 	# Create temporary directory for the icon
 	$unfinishedDirPath = $unfinishedDirParentPath
